@@ -6,8 +6,10 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "prestart": "npm run build",
     "test": "echo 'No tests yet' && exit 0"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "express": "^4.19.2"

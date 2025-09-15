@@ -29,11 +29,25 @@ jobs:
           npm run build --if-present
           npm run test --if-present
 
+      - name: Prepare production bundle
+        run: |
+          # keep only production dependencies for runtime
+          npm prune --production
+          # assemble release folder with runtime files
+          rm -rf release
+          mkdir -p release
+          cp -R dist release/dist
+          if [ -d public ]; then cp -R public release/public; fi
+          cp package.json package-lock.json release/
+          cp -R node_modules release/node_modules
+          # create a deterministic zip for deploy
+          (cd release && zip -r ../release.zip .)
+
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: .
+          path: release.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -44,12 +58,17 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: node-app
-      
+          path: .
+
+      - name: Show downloaded files
+        run: |
+          ls -la
+          unzip -l release.zip
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'JestBDDGenerator'
           slot-name: 'Production'
-          package: .
+          package: release.zip
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_1025999A2986430896A01B6C77505A38 }}
