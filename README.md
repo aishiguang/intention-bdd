@@ -33,3 +33,17 @@ Workflow file: `.github/workflows/azure-webapp.yml`
 
 - Health endpoint: `GET /health` returns `{ status: 'ok' }`.
 - Default port is `process.env.PORT || 3000` (App Service sets `PORT`).
+
+## How Azure Knows Which Port To Use
+
+Azure App Service assigns your app a dynamic internal port at runtime and exposes it via the `PORT` environment variable. The built-in reverse proxy listens on 80/443 and forwards traffic to your Node process on that internal port.
+
+- Express binding: In `src/server.ts`, the server listens on `process.env.PORT` with a fallback to `3000` for local dev. On Azure, `PORT` is always set by the platform, so the app binds to the correct port automatically.
+- No extra config needed: You do not set a fixed port in App Service. Just read `process.env.PORT`.
+- Local vs Azure: Locally you’ll see `http://localhost:3000`. On Azure your public URL is `https://<app-name>.azurewebsites.net`, while your app still binds to the platform-provided internal `PORT`.
+
+## Environment Variables
+
+- Secrets: Store secrets in a local `.env` file (already gitignored). Example template: `.env.example`.
+- OpenAI token: Set `OPENAI_API_SECRET` in `.env`.
+- Usage: If you want the app to load `.env`, add `dotenv` and call `require('dotenv').config()` at startup, or set the variable in Azure App Service → Configuration.
