@@ -1,18 +1,25 @@
 # intention-bdd
 
-Personal playground, designed to be hosted on Azure App Service. This repo includes a minimal Node.js/Express TypeScript app and a GitHub Actions workflow to build and deploy on pushes to `main`.
+Behaviour-Driven upgrade service for any user-provided GitHub project. It analyzes a repository via OpenAI (link-based browsing) to generate clear Gherkin features and scenarios, paving the way for BDD adoption. The app is designed for Azure App Service and ships with a CI/CD workflow.
 
 ## Run locally
 
 - Prereqs: Node.js 18+ installed.
 - Commands:
   - `npm install`
-  - `npm start` (builds TypeScript then starts `dist/server.js`)
+  - `npm run build`
+  - `cp .env.example .env` and fill `OPENAI_API_SECRET`
+  - `npm start` or `npm run start:local`
   - Visit `http://localhost:3000`
+
+Environment variables loaded locally via `dotenv`:
+- `OPENAI_API_SECRET` (required for analysis)
+- `OPENAI_API_MODEL` (defaults to `gpt-4.1-mini`)
+- `OPENAI_ALLOW_WEB=true` (required; enables link-based analysis)
 
 ## Deploy to Azure
 
-This repo contains `.github/workflows/azure-webapp.yml` which deploys to Azure App Service using a publish profile.
+This repo contains `.github/workflows/main_jestbddgenerator.yml` which builds and deploys to Azure App Service using a publish profile.
 
 1) Create an Azure Web App (Linux, Node runtime) in your subscription.
 2) In the Web App blade, download the Publish Profile.
@@ -21,7 +28,15 @@ This repo contains `.github/workflows/azure-webapp.yml` which deploys to Azure A
    - Variable `AZURE_WEBAPP_NAME`: your Web App name (e.g. `intention-bdd-web`).
 4) Push to `main` or run the workflow manually. The pipeline builds the app and deploys it to the Web App.
 
-Workflow file: `.github/workflows/azure-webapp.yml`
+Workflow file: `.github/workflows/main_jestbddgenerator.yml`
+
+### Cloud runtime
+
+- App Service runs `npm start` by default, which is safe even without a `.env` file (dotenv is a no-op). Alternatively, you can set the Startup Command to `npm run start:prod`.
+- Configure environment settings in Azure Portal → App Service → Configuration:
+  - `OPENAI_API_SECRET`: your API key
+  - `OPENAI_API_MODEL`: a model that supports web tools/browsing (e.g. `gpt-4.1-mini`)
+  - `OPENAI_ALLOW_WEB`: `true`
 
 ## Customize
 
@@ -45,5 +60,29 @@ Azure App Service assigns your app a dynamic internal port at runtime and expose
 ## Environment Variables
 
 - Secrets: Store secrets in a local `.env` file (already gitignored). Example template: `.env.example`.
-- OpenAI token: Set `OPENAI_API_SECRET` in `.env`.
-- Usage: If you want the app to load `.env`, add `dotenv` and call `require('dotenv').config()` at startup, or set the variable in Azure App Service → Configuration.
+- OpenAI token: Set `OPENAI_API_SECRET` in `.env` or in Azure App Service → Configuration. Optional: `OPENAI_API_MODEL` (default `gpt-4o-mini`).
+- Usage: If you want the app to load `.env`, add `dotenv` and call `require('dotenv').config()` at startup, or set variables in Azure App Service.
+
+## Gherkin Generation via OpenAI (Link-Based Only)
+
+- The service uses OpenAI’s Responses API with web tools to analyze the public GitHub URL directly. It does not download or write repository data to disk.
+- Requirements:
+  - `OPENAI_API_SECRET`: your API key.
+  - `OPENAI_ALLOW_WEB=true`: enable link-based analysis.
+  - `OPENAI_API_MODEL`: a model that supports web tools/browsing (for example, some `gpt-4.1*` variants). Defaults to `gpt-4.1-mini`.
+- Behavior:
+  - The progress stream indicates when the link-based analyzer is running.
+  - If OpenAI returns an error, the job fails with an error message; there is no disk-based fallback.
+
+## How It Works
+
+- Input: On the homepage, provide a public GitHub repository URL (or `owner/repo`).
+- Processing: The server asks OpenAI (with web tools enabled) to inspect the repo and synthesize Gherkin.
+- Output: Progress logs stream live; the generated Gherkin appears when complete.
+
+## Roadmap
+
+- Test generation for TypeScript projects using TikTok/Jest-BDD-Generator:
+  - Convert generated Gherkin into Jest unit/e2e test skeletons.
+  - Smart stubbing and fixtures; optional Playwright integration for e2e.
+  - Repository PR flow (optional) to propose tests back to the source repo.

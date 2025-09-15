@@ -5,14 +5,17 @@
   "type": "commonjs",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node -r dotenv/config dist/server.js",
+    "start:local": "node -r dotenv/config dist/server.js",
+    "start:prod": "node dist/server.js",
     "test": "echo 'No tests yet' && exit 0"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
