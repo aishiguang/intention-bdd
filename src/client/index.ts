@@ -4,7 +4,7 @@ const statusEl = $('status')!;
 const form = $('gen-form') as HTMLFormElement;
 const progressEl = $('progress') as HTMLPreElement;
 const planEl = $('plan') as HTMLPreElement;
-const gherkinEl = $('gherkin') as HTMLPreElement;
+const gherkinEl = $('gherkin') as HTMLElement;
 const submitBtn = $('submitBtn') as HTMLButtonElement;
 const copyBtn = $('copyBtn') as HTMLButtonElement;
 const downloadBtn = $('downloadBtn') as HTMLButtonElement;
@@ -40,6 +40,10 @@ function setGherkin(text?: string) {
   const n = t.length;
   lenEl.textContent = n ? `${n} chars` : '';
   copyBtn.disabled = !n; downloadBtn.disabled = !n;
+  const w = window as any;
+  if (n && w.hljs && typeof w.hljs.highlightElement === 'function') {
+    w.hljs.highlightElement(gherkinEl);
+  }
 }
 
 function setPlan(text?: string) {
@@ -156,4 +160,3 @@ function startTiming() {
     }, 1000);
   }
 }
-

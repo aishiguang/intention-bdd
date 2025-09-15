@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Intention BDD — Gherkin Generator</title>
     <link rel="stylesheet" href="/assets/index.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+    <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/gherkin.min.js"></script>
   </head>
   <body>
     <header>
@@ -37,10 +40,14 @@
               <button id="submitBtn" type="submit">Generate</button>
             </div>
           </div>
-          <div class="hint examples">Examples: 
-            <a href="#" data-example="vercel/next.js">vercel/next.js</a> · 
-            <a href="#" data-example="facebook/react">facebook/react</a> · 
-            <a href="#" data-example="nestjs/nest">nestjs/nest</a>
+          <div class="hint examples">Examples:
+            <a href="#" data-example="axios/axios" title="Promise-based HTTP client">axios/axios</a> ·
+            <a href="#" data-example="chalk/chalk" title="Terminal string styling">chalk/chalk</a> ·
+            <a href="#" data-example="reduxjs/redux" title="Predictable state container">reduxjs/redux</a> ·
+            <a href="#" data-example="uuidjs/uuid" title="UUID generator">uuidjs/uuid</a> ·
+            <a href="#" data-example="vercel/ms" title="Human-readable ms parser">vercel/ms</a> ·
+            <a href="#" data-example="colinhacks/zod" title="TypeScript-first schema validation">colinhacks/zod</a> ·
+            <a href="#" data-example="developit/mitt" title="Tiny functional event emitter">developit/mitt</a>
           </div>
         </form>
       </section>
@@ -79,7 +86,7 @@
             <span class="muted" id="len"></span>
           </div>
         </div>
-        <pre id="gherkin" class="code"></pre>
+        <pre class="code"><code id="gherkin" class="language-gherkin"></code></pre>
       </section>
     </main>
     <script type="module" src="/assets/index.js"></script>

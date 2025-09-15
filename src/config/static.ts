@@ -26,5 +26,5 @@ export function configureStatic(app: express.Express) {
       },
     }),
   );
-}
 
+}
