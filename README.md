@@ -82,6 +82,11 @@ Azure App Service assigns your app a dynamic internal port at runtime and expose
 
 ## Roadmap
 
+- Project links:
+  - Project GitHub: https://github.com/aishiguang/intention-bdd
+  - Jest‑BDD‑Generator: https://github.com/TikTok/Jest-BDD-Generator
+  - Docs: https://tiktok.github.io/jest-bdd-generator/
+
 - Test generation for TypeScript projects using TikTok/Jest-BDD-Generator:
   - Convert generated Gherkin into Jest unit/e2e test skeletons.
   - Smart stubbing and fixtures; optional Playwright integration for e2e.

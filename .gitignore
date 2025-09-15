@@ -12,3 +12,6 @@ logs
 .vscode/
 .idea/
 dist/
+public/assets/**/*.js
+public/assets/**/*.js.map
+# Keep CSS asset tracked (source lives in public/assets)

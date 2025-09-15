@@ -50,6 +50,7 @@ export async function generateGherkinFromLink(
   if (!allow) throw new Error('OPENAI_ALLOW_WEB not enabled');
 
   onInfo?.(`Using OpenAI link-based analyzer (model: ${model})`);
+  onInfo?.('::stage::planning');
 
   // Step 1: Plan — get a concise repo understanding and test seams
   const planPrompt = [
@@ -72,6 +73,7 @@ export async function generateGherkinFromLink(
   }
 
   // Step 2: Generate Gherkin — unit-leaning E2E-style steps suitable for Jest
+  onInfo?.('::stage::generating');
   const genPrompt = [
     'Generate ONLY valid Gherkin for this repository, leaning towards unit-testable steps that map well to Jest.',
     'Organize the output into THREE clearly separated Features with tags and optional brief comments (# lines):',
@@ -104,6 +106,7 @@ export async function generateGherkinFromLink(
   if (!gherkinInitial) throw new Error('OpenAI link-based response was empty');
 
   // Step 3: Refine — ensure structure and ordering are as requested (no web tools needed)
+  onInfo?.('::stage::refining');
   onInfo?.('Refining Gherkin organization and structure');
   const refinePrompt = [
     'Reorganize and validate the following Gherkin to strictly follow this order and labeling:',
