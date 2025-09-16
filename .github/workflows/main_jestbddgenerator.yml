@@ -28,7 +28,13 @@ jobs:
           # Deterministic install
           npm ci
           # Clean outputs to avoid stale state from committed *.tsbuildinfo
-          rm -rf dist public/assets
+          # Remove server build output entirely
+          rm -rf dist
+          # Remove only generated client bundles; keep authored assets like CSS/HTML
+          rm -f public/assets/*.bundle.js || true
+          rm -rf public/assets/chunks || true
+          rm -f public/assets/*.map || true
+          rm -f public/assets/**/*.d.ts || true
           # Force TypeScript project build so dist/ is emitted even if *.tsbuildinfo exists
           npx tsc -b --force
           # Bundle client assets with Rollup
