@@ -1,7 +1,7 @@
 # intention-bdd
 
 Behaviour-Driven upgrade service for any user-provided GitHub project. It analyzes a repository via OpenAI (link-based browsing) to generate clear Gherkin features and scenarios, paving the way for BDD adoption. The app is designed for Azure App Service and ships with a CI/CD workflow.
-
+[https://jestbddgenerator-bkhab9gyfnhcg4g7.southeastasia-01.azurewebsites.net/](https://jestbddgenerator-bkhab9gyfnhcg4g7.southeastasia-01.azurewebsites.net/)
 ## Run locally
 
 - Prereqs: Node.js 18+ installed.
