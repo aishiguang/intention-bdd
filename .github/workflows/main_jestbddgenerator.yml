@@ -27,8 +27,12 @@ jobs:
         run: |
           # Deterministic install
           npm ci
-          # Build server (dist/) and client (public/assets)
-          npm run build
+          # Clean outputs to avoid stale state from committed *.tsbuildinfo
+          rm -rf dist public/assets
+          # Force TypeScript project build so dist/ is emitted even if *.tsbuildinfo exists
+          npx tsc -b --force
+          # Bundle client assets with Rollup
+          npx rollup -c
           # Optional tests
           npm run test --if-present
 

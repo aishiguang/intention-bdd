@@ -18,3 +18,4 @@ public/assets/**/*.d.ts
 
 # Keep CSS asset tracked (source lives in public/assets)
 .rollup.cache
+*.tsbuildinfo
