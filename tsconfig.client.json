@@ -5,10 +5,17 @@
     "outDir": "public/assets",
     "rootDir": "src/client",
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "bundler",
+    "composite": true,
+    "resolveJsonModule": true,
+    "lib": ["DOM", "ES2020"]
   },
   "include": [
-    "src/client/index.ts"
+    "src/client/**/*.ts",
+    "src/client/**/*.tsx",
+    "src/client/types/**/*.d.ts"
   ]
 }
-

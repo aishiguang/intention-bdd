@@ -14,4 +14,7 @@ logs
 dist/
 public/assets/**/*.js
 public/assets/**/*.js.map
+public/assets/**/*.d.ts
+
 # Keep CSS asset tracked (source lives in public/assets)
+.rollup.cache

@@ -87,6 +87,18 @@ Azure App Service assigns your app a dynamic internal port at runtime and expose
   - Jest‑BDD‑Generator: https://github.com/TikTok/Jest-BDD-Generator
   - Docs: https://tiktok.github.io/jest-bdd-generator/
 
+## React + Jest‑BDD‑Generator
+
+- React: The project includes React and ReactDOM as dependencies, and the client TypeScript build is configured with `jsx: react-jsx`. The current UI is vanilla TS; we can migrate UI parts to React components incrementally without introducing a bundler (or adopt Vite for a smoother DX).
+
+- Jest‑BDD‑Generator: This repo will integrate the generator to convert generated Gherkin into Jest unit/e2e tests for TypeScript projects. For now, a placeholder script exists:
+  - `npm run bdd:generate`
+  You can replace this with the actual CLI invocation once the generator is published/available in your environment.
+
+Suggested next steps:
+- Add Vite (or esbuild) for a modern React build and HMR.
+- Wire the generator to accept the produced `.feature` text and emit Jest files into a `tests/` folder.
+
 - Test generation for TypeScript projects using TikTok/Jest-BDD-Generator:
   - Convert generated Gherkin into Jest unit/e2e test skeletons.
   - Smart stubbing and fixtures; optional Playwright integration for e2e.

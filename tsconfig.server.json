@@ -6,6 +6,12 @@
     "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "node",
+    "composite": true,
+    "resolveJsonModule": true,
+    "lib": ["ES2020"],
+    "types": ["node"],
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
   },
@@ -16,4 +22,3 @@
     "src/client/**"
   ]
 }
-

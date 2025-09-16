@@ -1,13 +1,20 @@
+export {};
+import hljs from 'highlight.js/lib/core';
+import gherkin from 'highlight.js/lib/languages/gherkin';
+import markdown from 'highlight.js/lib/languages/markdown';
+hljs.registerLanguage('gherkin', gherkin);
+hljs.registerLanguage('markdown', markdown);
 const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
 
 const statusEl = $('status')!;
 const form = $('gen-form') as HTMLFormElement;
 const progressEl = $('progress') as HTMLPreElement;
-const planEl = $('plan') as HTMLPreElement;
+const planEl = $('plan') as HTMLElement;
 const gherkinEl = $('gherkin') as HTMLElement;
 const submitBtn = $('submitBtn') as HTMLButtonElement;
 const copyBtn = $('copyBtn') as HTMLButtonElement;
 const downloadBtn = $('downloadBtn') as HTMLButtonElement;
+const goGenerateBtn = document.createElement('button') as HTMLButtonElement;
 const lenEl = $('len') as HTMLElement;
 const wrapBtn = $('wrapBtn') as HTMLButtonElement;
 const gherkinPre = $('gherkinPre') as HTMLElement;
@@ -26,7 +33,7 @@ function setStatus(kind: 'ok' | 'err' | 'run', text: string) {
   const cls = kind === 'ok' ? 'badge ok' : kind === 'err' ? 'badge err' : 'badge run';
   statusEl.className = cls; statusEl.textContent = text;
   progressBadge.className = cls; progressBadge.textContent = text;
-  statusBar.className = 'bar show'; statusBar.textContent = text;
+  statusBar.className = kind === 'err' ? 'bar show error' : 'bar show'; statusBar.textContent = text;
   document.title = `${text} — Intention BDD`;
   if (kind === 'run') submitBtn.innerHTML = '<span class="spinner"></span> Generating…'; else submitBtn.textContent = 'Generate';
 }
@@ -43,14 +50,27 @@ function setGherkin(text?: string) {
   const n = t.length;
   lenEl.textContent = n ? `${n} chars` : '';
   copyBtn.disabled = !n; downloadBtn.disabled = !n; wrapBtn.disabled = !n;
-  const w = window as any;
-  if (n && w.hljs && typeof w.hljs.highlightElement === 'function') {
-    w.hljs.highlightElement(gherkinEl);
+  // Update or insert redirect button
+  setupGoGenerateButton(n > 0);
+  if (n) {
+    try {
+      if ((gherkinEl as any).dataset && (gherkinEl as any).dataset.highlighted) {
+        delete (gherkinEl as any).dataset.highlighted;
+      }
+      hljs.highlightElement(gherkinEl);
+    } catch {}
   }
 }
 
 function setPlan(text?: string) {
   planEl.textContent = text || '';
+  try {
+    planEl.classList.add('language-markdown');
+    if ((planEl as any).dataset && (planEl as any).dataset.highlighted) {
+      delete (planEl as any).dataset.highlighted;
+    }
+    hljs.highlightElement(planEl);
+  } catch {}
 }
 
 function reset() {
@@ -96,6 +116,22 @@ wrapBtn.addEventListener('click', () => {
   wrapBtn.textContent = wrapped ? 'No Wrap' : 'Wrap';
 });
 
+function setupGoGenerateButton(enabled: boolean) {
+  const actions = (goGenerateBtn.parentElement) ? goGenerateBtn.parentElement : document.querySelector('.actions');
+  if (!goGenerateBtn.parentElement && actions) {
+    goGenerateBtn.id = 'goGenerateBtn';
+    goGenerateBtn.textContent = 'Generate Tests';
+    (actions as HTMLElement).insertBefore(goGenerateBtn, (actions as HTMLElement).firstChild);
+  }
+  goGenerateBtn.disabled = !enabled;
+  goGenerateBtn.onclick = () => {
+    const text = gherkinEl.textContent || '';
+    if (!text) return;
+    try { sessionStorage.setItem('gherkinPayload', text); } catch {}
+    window.location.href = '/generate.html';
+  };
+}
+
 form.addEventListener('submit', async (e) => {
   e.preventDefault(); if (es) { es.close(); es = null; }
   const repo = ( $('repo') as HTMLInputElement ).value.trim();
@@ -111,7 +147,7 @@ form.addEventListener('submit', async (e) => {
     es.addEventListener('status', (ev) => {
       const { status } = JSON.parse((ev as MessageEvent).data);
       append('Status: ' + status); lastUpdateAt = Date.now();
-      if (status === 'done') { setStatus('ok', 'Done'); submitBtn.disabled = false; timingEl.textContent = elapsed(); markStage('done'); if (es) { try { es.close(); } catch {} es = null; } }
+      if (status === 'done') { setStatus('ok', 'Done'); submitBtn.disabled = false; timingEl.textContent = elapsed(); markStage('done'); /* keep SSE open until 'done' arrives */ }
       if (status === 'error') { handleFatal('Server reported an error.'); }
     });
     es.addEventListener('log', (ev) => {
@@ -198,4 +234,17 @@ function handleFatal(message: string) {
   submitBtn.disabled = false;
   stopTiming();
   append(message);
+  markStageError();
+}
+
+function markStageError() {
+  if (!stagesEl) return;
+  const active = stagesEl.querySelector('.stage.active') as HTMLElement | null;
+  if (active) {
+    active.classList.remove('active');
+    active.classList.add('error');
+  } else {
+    const queued = $('stage-queued');
+    queued?.classList.add('error');
+  }
 }

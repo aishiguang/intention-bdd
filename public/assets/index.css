@@ -6,6 +6,7 @@ header h1 { margin:0; font-size:18px; font-weight:600; }
 header .sub { color:var(--muted); font-size:13px; }
 .bar { background: #111827; border-top:1px solid #1f2937; border-bottom:1px solid #1f2937; padding:8px 24px; font-size:13px; color:var(--muted); display:none; }
 .bar.show { display:block; }
+.bar.error { background:#3f1d1d; color:#fecaca; border-top-color:#7f1d1d; border-bottom-color:#7f1d1d; }
 .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation: spin 1s linear infinite; vertical-align:-2px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 main { max-width:1100px; margin:24px auto; padding:0 16px; display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
@@ -23,7 +24,8 @@ button[disabled] { opacity:.6; cursor:default; }
 .badge.err { background:rgba(239,68,68,.15); color:#ef4444; }
 pre { margin:0; white-space:pre-wrap; }
 .log { background:#0a0f1f; color:#9ae6b4; border-radius:8px; padding:12px; max-height:260px; overflow:auto; font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:12px; }
-.code { background:#0f172a; color:#e5e7eb; border-radius:8px; padding:12px; min-height:240px; font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:13px; white-space:pre; overflow:auto; }
+.code { background:#0f172a; color:#e5e7eb; border-radius:8px; padding:12px; min-height:240px; max-height:420px; max-width: 600px; margin: 0 auto; font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:13px; white-space:pre; overflow:auto; }
+.card.full > .code { max-width: 100%; }
 .code.wrap { white-space:pre-wrap; word-break:break-word; }
 /* Limit Planning panel growth */
 #plan { max-height: 280px; overflow: auto; max-width: 640px; margin: 0 auto; }
@@ -59,5 +61,10 @@ pre { margin:0; white-space:pre-wrap; }
   color:#10b981;
   border-color:#065f46;
   box-shadow: 0 0 0 2px rgba(16,185,129,.25) inset;
+}
+.stage.error { 
+  background: rgba(239,68,68,.20);
+  color: #fecaca;
+  border-color: #b91c1c;
 }
 .stages .stage:not(.active) { animation: none; }

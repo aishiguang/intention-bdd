@@ -6,8 +6,6 @@
     <title>Intention BDD — Gherkin Generator</title>
     <link rel="stylesheet" href="/assets/index.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
-    <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/gherkin.min.js"></script>
   </head>
   <body>
     <header>
@@ -60,7 +58,7 @@
 
       <section class="card">
         <h2>Planning (visibility)</h2>
-        <pre id="plan" class="code" placeholder="# Plan will appear here"></pre>
+        <pre class="code" placeholder="# Plan will appear here"><code id="plan" class="language-markdown"></code></pre>
       </section>
 
       <section class="card full">
@@ -90,7 +88,7 @@
         <pre id="gherkinPre" class="code"><code id="gherkin" class="language-gherkin"></code></pre>
       </section>
     </main>
-    <script type="module" src="/assets/index.js"></script>
+    <script type="module" src="/assets/index.bundle.js"></script>
   
   </body>
   </html>

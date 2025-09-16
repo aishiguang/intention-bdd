@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Generate Tests — Intention BDD</title>
+    <link rel="stylesheet" href="/assets/index.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Generate Tests</h1>
+        <div class="sub">From generated Gherkin to Jest-friendly tests (Working In Progress
+        <a href="https://tiktok.github.io/jest-bdd-generator/demos/generateTests/" target="_blank" rel="noopener" class="muted">
+          explore more: A Working Demo — Generate Tests
+        </a>)</div>
+
+      </div>
+      <nav style="display:flex; gap:10px; align-items:center;">
+        <a href="/" class="muted">← Back</a>
+        <a href="https://tiktok.github.io/jest-bdd-generator/" target="_blank" rel="noopener" class="muted">Docs</a>
+      </nav>
+    </header>
+    <main>
+      <section class="card full">
+        <h2>Gherkin Input</h2>
+        <div class="hint">Edit or paste your feature(s). If you arrived from the homepage, your Gherkin is prefilled.</div>
+        <textarea id="gherkinInput" style="width:100%; min-height:280px; background:#0f172a; color:#e5e7eb; border:1px solid #1f2937; border-radius:8px; padding:12px; font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;"></textarea>
+        <div class="actions" style="margin-top:10px;">
+          <button id="toPretty">Preview</button>
+          <button id="copyFeature">Copy</button>
+          <button id="clearFeature">Clear</button>
+        </div>
+      </section>
+
+      <section class="card full">
+        <h2>Next Step</h2>
+        <div class="hint">Use Jest‑BDD‑Generator to convert these features into Jest tests. See the documentation for CLI usage and examples.</div>
+        <div class="actions" style="margin-top:8px;">
+          <a class="stage next" href="https://tiktok.github.io/jest-bdd-generator/demos/generateTests/" target="_blank" rel="noopener" style="text-decoration:none;">
+            <span class="icon">🧪</span>
+            Open Demo — Generate Tests
+          </a>
+        </div>
+      </section>
+
+      <section class="card full">
+        <h2>Features</h2>
+        <div id="featureSections"></div>
+      </section>
+    </main>
+    <script type="module" src="/assets/generate.bundle.js"></script>
+  </body>
+  </html>
