@@ -23,11 +23,41 @@ jobs:
         with:
           node-version: '20.x'
 
-      - name: npm install, build, and test
+      - name: Install, build, and test
         run: |
-          npm install
-          npm run build --if-present
+          # Deterministic install
+          npm ci
+          # Build server (dist/) and client (public/assets)
+          npm run build
+          # Optional tests
           npm run test --if-present
+
+      - name: Verify build output
+        run: |
+          echo "Workspace contents after build:"
+          ls -la
+          echo "Check dist directory:"
+          if [ -d dist ]; then
+            ls -la dist
+          else
+            echo "ERROR: dist/ not found after build. Failing early."
+            exit 1
+          fi
+          echo "Check public/assets directory:"
+          if [ -d public/assets ]; then
+            ls -la public/assets
+          else
+            echo "ERROR: public/assets/ not found after build. Rollup outputs should be here."
+            exit 1
+          fi
+          echo "Verify client bundles exist:"
+          if ls public/assets/*.bundle.js >/dev/null 2>&1; then
+            echo "Found client bundles:"
+            ls -1 public/assets/*.bundle.js
+          else
+            echo "ERROR: No *.bundle.js files found in public/assets."
+            exit 1
+          fi
 
       - name: Prepare production bundle
         run: |
@@ -37,7 +67,12 @@ jobs:
           rm -rf release
           mkdir -p release
           cp -R dist release/dist
-          if [ -d public ]; then cp -R public release/public; fi
+          # include client assets and HTML
+          if [ ! -d public ]; then
+            echo "ERROR: public/ directory missing during packaging."
+            exit 1
+          fi
+          cp -R public release/public
           cp package.json package-lock.json release/
           cp -R node_modules release/node_modules
           # create a deterministic zip for deploy
