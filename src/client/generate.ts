@@ -2,11 +2,16 @@ import { TestGeneratorFromSource } from 'jest-bdd-generator/lib/gherkin-to-test'
 import hljs from 'highlight.js/lib/core';
 import typescript from 'highlight.js/lib/languages/typescript';
 import gherkin from 'highlight.js/lib/languages/gherkin';
+import { trackEvent, trackPageView } from './telemetry';
 
 hljs.registerLanguage('typescript', typescript);
 hljs.registerLanguage('gherkin', gherkin);
 
-declare global { interface Window { hljs?: any } }
+declare global {
+  interface Window {
+    hljs?: any;
+  }
+}
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
 
@@ -16,10 +21,15 @@ const toPretty = $('toPretty') as HTMLButtonElement;
 const copyFeature = $('copyFeature') as HTMLButtonElement;
 const clearFeature = $('clearFeature') as HTMLButtonElement;
 
+trackPageView('generate', { path: window.location.pathname });
+
 function loadFromSession() {
   try {
     const payload = sessionStorage.getItem('gherkinPayload');
-    if (payload && input) input.value = payload;
+    if (payload && input) {
+      input.value = payload;
+      trackEvent('generate_loadFromSession', { length: payload.length });
+    }
   } catch {}
 }
 
@@ -71,6 +81,7 @@ function getFeatureTitle(featSource: string): string {
 function renderFeatureSections(features: string[]) {
   if (!featureSections) return;
   featureSections.innerHTML = '';
+  trackEvent('generate_renderFeatures', { count: features.length });
   features.forEach((feat, idx) => {
     const row = document.createElement('div');
     row.className = 'split';
@@ -95,7 +106,12 @@ function renderFeatureSections(features: string[]) {
     const btnGen = document.createElement('button');
     btnGen.textContent = 'Generate Tests';
     const btnCopy = document.createElement('button'); btnCopy.textContent = 'Copy Feature';
-    btnCopy.onclick = async () => { try { await navigator.clipboard.writeText(ta.value); } catch {} };
+    btnCopy.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(ta.value);
+        trackEvent('generate_copyFeature', { featureIndex: idx, length: ta.value.length });
+      } catch {}
+    };
     leftActions.appendChild(btnGen);
     leftActions.appendChild(btnCopy);
     left.appendChild(leftTitle);
@@ -113,14 +129,29 @@ function renderFeatureSections(features: string[]) {
 
     btnGen.onclick = async () => {
       codeEl.textContent = '// Generating...'; highlight(codeEl);
+      trackEvent('generate_featureTestsRequested', {
+        featureIndex: idx,
+        featureTitle: leftTitle.textContent || undefined,
+        length: ta.value.length,
+      });
       try {
         const gen = new TestGeneratorFromSource();
         gen.compileGherkinFromSource(ta.value || '');
         const steps = gen.compileKnownStepsFromSource('');
         const code = gen.generateGherkinFromSource(steps, ta.value || '') || '';
         codeEl.textContent = code; highlight(codeEl);
+        trackEvent('generate_featureTestsResult', {
+          featureIndex: idx,
+          status: 'success',
+          length: code.length,
+        });
       } catch (e: any) {
         codeEl.textContent = `// Error generating tests: ${e?.message || String(e)}`; highlight(codeEl);
+        trackEvent('generate_featureTestsResult', {
+          featureIndex: idx,
+          status: 'error',
+          message: e?.message || String(e),
+        });
       }
     };
 
@@ -142,10 +173,28 @@ toPretty?.addEventListener('click', () => {
   if (!input) return;
   const cleaned = sanitizeGherkin(input.value || '');
   const feats = splitFeatures(cleaned);
+  trackEvent('generate_toPretty', {
+    featureCount: feats.length,
+    hadInput: Boolean(cleaned.length),
+  });
   renderFeatureSections(feats);
 });
-copyFeature?.addEventListener('click', async () => { try { await navigator.clipboard.writeText(input?.value || ''); } catch {} });
-clearFeature?.addEventListener('click', () => { if (input) input.value = ''; if (featureSections) featureSections.innerHTML = ''; });
+copyFeature?.addEventListener('click', async () => {
+  try {
+    const value = input?.value || '';
+    await navigator.clipboard.writeText(value);
+    trackEvent('generate_copyRaw', { length: value.length });
+  } catch {}
+});
+clearFeature?.addEventListener('click', () => {
+  if (input && input.value) {
+    trackEvent('generate_clear', { length: input.value.length });
+    input.value = '';
+  } else if (input) {
+    input.value = '';
+  }
+  if (featureSections) featureSections.innerHTML = '';
+});
 
 loadFromSession();
 // Auto-split on load if payload exists

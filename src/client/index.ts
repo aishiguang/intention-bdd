@@ -2,6 +2,7 @@ export {};
 import hljs from 'highlight.js/lib/core';
 import gherkin from 'highlight.js/lib/languages/gherkin';
 import markdown from 'highlight.js/lib/languages/markdown';
+import { trackEvent, trackPageView } from './telemetry';
 hljs.registerLanguage('gherkin', gherkin);
 hljs.registerLanguage('markdown', markdown);
 const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
@@ -28,6 +29,8 @@ let startedAt = 0;
 let lastUpdateAt = 0;
 let timingTimer: number | null = null;
 const SILENCE_TIMEOUT_MS = 60000;
+
+trackPageView('index', { path: window.location.pathname });
 
 function setStatus(kind: 'ok' | 'err' | 'run', text: string) {
   const cls = kind === 'ok' ? 'badge ok' : kind === 'err' ? 'badge err' : 'badge run';
@@ -92,13 +95,25 @@ function elapsed(): string {
 }
 
 document.querySelectorAll('[data-example]').forEach((a) => {
-  a.addEventListener('click', (e) => { e.preventDefault(); const t = a as HTMLAnchorElement; ( $('repo') as HTMLInputElement ).value = t.dataset.example || ''; });
+  a.addEventListener('click', (e) => {
+    e.preventDefault();
+    const t = a as HTMLAnchorElement;
+    ( $('repo') as HTMLInputElement ).value = t.dataset.example || '';
+    trackEvent('index_exampleSelected', { example: t.dataset.example || '' });
+  });
 });
 
 copyBtn.addEventListener('click', async () => {
   const text = gherkinEl.textContent || '';
   if (!text) return;
-  try { await navigator.clipboard.writeText(text); append('Gherkin copied to clipboard'); } catch { append('Copy failed'); }
+  try {
+    await navigator.clipboard.writeText(text);
+    append('Gherkin copied to clipboard');
+    trackEvent('index_copyResult', { length: text.length, status: 'success' });
+  } catch {
+    append('Copy failed');
+    trackEvent('index_copyResult', { length: text.length, status: 'error' });
+  }
 });
 
 downloadBtn.addEventListener('click', () => {
@@ -108,12 +123,14 @@ downloadBtn.addEventListener('click', () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = 'generated.feature'; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  trackEvent('index_downloadFeature', { length: text.length });
 });
 
 wrapBtn.addEventListener('click', () => {
   if (!gherkinPre) return;
   const wrapped = gherkinPre.classList.toggle('wrap');
   wrapBtn.textContent = wrapped ? 'No Wrap' : 'Wrap';
+  trackEvent('index_toggleWrap', { wrapped });
 });
 
 function setupGoGenerateButton(enabled: boolean) {
@@ -128,6 +145,7 @@ function setupGoGenerateButton(enabled: boolean) {
     const text = gherkinEl.textContent || '';
     if (!text) return;
     try { sessionStorage.setItem('gherkinPayload', text); } catch {}
+    trackEvent('index_goGenerate', { length: text.length });
     window.location.href = '/generate.html';
   };
 }
@@ -136,19 +154,33 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault(); if (es) { es.close(); es = null; }
   const repo = ( $('repo') as HTMLInputElement ).value.trim();
   const branch = ( $('branch') as HTMLInputElement ).value.trim();
+  trackEvent('index_jobStart', { repoProvided: Boolean(repo), branchProvided: Boolean(branch) });
   reset(); setStatus('run', 'Running'); submitBtn.disabled = true; startedAt = Date.now();
   startTiming();
   try {
     const resp = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repo, branch: branch || undefined }) });
-    if (!resp.ok) { append('Failed to start job: ' + (await resp.text())); submitBtn.disabled = false; setStatus('err', 'Error'); return; }
+    if (!resp.ok) {
+      const errText = await resp.text();
+      append('Failed to start job: ' + errText);
+      submitBtn.disabled = false; setStatus('err', 'Error');
+      trackEvent('index_jobStartFailed', { status: resp.status, body: errText.slice(0, 200) });
+      return;
+    }
     const { jobId } = await resp.json();
     append('Job started: ' + jobId);
+    trackEvent('index_jobQueued', { hasJobId: Boolean(jobId) });
     es = new EventSource('/api/progress/' + jobId);
     es.addEventListener('status', (ev) => {
       const { status } = JSON.parse((ev as MessageEvent).data);
       append('Status: ' + status); lastUpdateAt = Date.now();
-      if (status === 'done') { setStatus('ok', 'Done'); submitBtn.disabled = false; timingEl.textContent = elapsed(); markStage('done'); /* keep SSE open until 'done' arrives */ }
-      if (status === 'error') { handleFatal('Server reported an error.'); }
+      if (status === 'done') {
+        trackEvent('index_jobStatus', { status });
+        setStatus('ok', 'Done'); submitBtn.disabled = false; timingEl.textContent = elapsed(); markStage('done'); /* keep SSE open until 'done' arrives */
+      }
+      if (status === 'error') {
+        trackEvent('index_jobStatus', { status });
+        handleFatal('Server reported an error.');
+      }
     });
     es.addEventListener('log', (ev) => {
       const { message } = JSON.parse((ev as MessageEvent).data);
@@ -161,16 +193,19 @@ form.addEventListener('submit', async (e) => {
     es.addEventListener('done', (ev) => {
       const { gherkin } = JSON.parse((ev as MessageEvent).data);
       if (gherkin) setGherkin(gherkin);
+      trackEvent('index_jobComplete', { length: gherkin ? gherkin.length : 0 });
       stopTiming();
       if (es) { try { es.close(); } catch {} es = null; }
     });
     es.onerror = () => {
       const state = (es as EventSource).readyState; // 0 connecting, 1 open, 2 closed
       if (state === 2) {
+        trackEvent('index_sseError', { state });
         handleFatal('Connection closed unexpectedly. Please retry.');
       } else {
         setTimeout(() => {
           if (!lastUpdateAt || Date.now() - lastUpdateAt > 10000) {
+            trackEvent('index_sseError', { state: (es as EventSource).readyState, reason: 'timeout' });
             handleFatal('Network issue detected. Please retry.');
           }
         }, 10000);
@@ -179,6 +214,7 @@ form.addEventListener('submit', async (e) => {
   } catch (err: any) {
     append('Error: ' + (err?.message || String(err)));
     submitBtn.disabled = false; setStatus('err', 'Error');
+    trackEvent('index_jobStartException', { message: err?.message || String(err) });
     stopTiming();
   }
 });
@@ -235,6 +271,7 @@ function handleFatal(message: string) {
   stopTiming();
   append(message);
   markStageError();
+  trackEvent('index_fatal', { message });
 }
 
 function markStageError() {
