@@ -9,6 +9,7 @@ export default [
     input: {
       index: 'src/client/index.ts',
       generate: 'src/client/generate.ts',
+      integrate: 'src/client/integrate.ts',
     },
     output: {
       dir: 'public/assets',

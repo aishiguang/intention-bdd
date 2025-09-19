@@ -16,12 +16,85 @@ declare global {
 const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
 
 const input = $('gherkinInput') as HTMLTextAreaElement;
-const featureSections = $('featureSections') as HTMLElement;
+const featureSectionsAnchor = $('featureSectionsAnchor') as HTMLElement;
 const toPretty = $('toPretty') as HTMLButtonElement;
 const copyFeature = $('copyFeature') as HTMLButtonElement;
 const clearFeature = $('clearFeature') as HTMLButtonElement;
+const goIntegrateBtn = $('goIntegrateBtn') as HTMLButtonElement;
+const goIntegrateHint = $('goIntegrateHint') as HTMLElement | null;
 
 trackPageView('generate', { path: window.location.pathname });
+
+const TEST_SESSION_KEY = 'intentionGeneratedTests';
+
+type StoredTest = {
+  feature: string;
+  featureTitle: string;
+  tests?: string;
+};
+
+function readStoredTests(): StoredTest[] {
+  try {
+    const raw = sessionStorage.getItem(TEST_SESSION_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((entry) => ({
+      feature: typeof entry?.feature === 'string' ? entry.feature : '',
+      featureTitle: typeof entry?.featureTitle === 'string' ? entry.featureTitle : 'Feature',
+      tests: typeof entry?.tests === 'string' ? entry.tests : undefined,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredTests(data: StoredTest[]) {
+  try {
+    sessionStorage.setItem(TEST_SESSION_KEY, JSON.stringify(data));
+  } catch {}
+}
+
+function clearStoredTests() {
+  try {
+    sessionStorage.removeItem(TEST_SESSION_KEY);
+  } catch {}
+}
+
+function syncStoredTests(features: string[]): StoredTest[] {
+  if (!features.length) {
+    clearStoredTests();
+    return [];
+  }
+  const prev = readStoredTests();
+  const next = features.map((feature, idx) => {
+    const previous = prev[idx];
+    const keepPrev = Boolean(previous && previous.feature.trim() === feature.trim());
+    const featureSource = keepPrev ? previous!.feature : feature;
+    return {
+      feature: featureSource,
+      featureTitle: getFeatureTitle(featureSource),
+      tests: keepPrev ? previous!.tests : previous?.tests,
+    };
+  });
+  writeStoredTests(next);
+  return next;
+}
+
+function persistGeneratedTest(index: number, featureSource: string, tests: string) {
+  try {
+    const current = readStoredTests();
+    while (current.length <= index) {
+      current.push({ feature: '', featureTitle: `Feature ${current.length + 1}` });
+    }
+    current[index] = {
+      feature: featureSource,
+      featureTitle: getFeatureTitle(featureSource),
+      tests,
+    };
+    writeStoredTests(current);
+  } catch {}
+}
 
 function loadFromSession() {
   try {
@@ -79,19 +152,19 @@ function getFeatureTitle(featSource: string): string {
 }
 
 function renderFeatureSections(features: string[]) {
-  if (!featureSections) return;
-  featureSections.innerHTML = '';
+  if (!featureSectionsAnchor) return;
+  featureSectionsAnchor.textContent = '';
   trackEvent('generate_renderFeatures', { count: features.length });
-  features.forEach((feat, idx) => {
-    const row = document.createElement('div');
-    row.className = 'split';
+  const stored = syncStoredTests(features);
+  stored.forEach((storedFeat, idx) => {
+    const row = document.createDocumentFragment();
 
     const left = document.createElement('div');
     left.className = 'card';
     const leftTitle = document.createElement('h3');
-    leftTitle.textContent = getFeatureTitle(feat);
+    leftTitle.textContent = storedFeat.featureTitle;
     const ta = document.createElement('textarea');
-    ta.value = feat;
+    ta.value = storedFeat.feature;
     ta.style.width = '100%';
     ta.style.minHeight = '200px';
     ta.style.background = '#0f172a';
@@ -127,6 +200,11 @@ function renderFeatureSections(features: string[]) {
     right.appendChild(rightTitle);
     right.appendChild(pre);
 
+    if (storedFeat.tests) {
+      codeEl.textContent = storedFeat.tests;
+      highlight(codeEl);
+    }
+
     btnGen.onclick = async () => {
       codeEl.textContent = '// Generating...'; highlight(codeEl);
       trackEvent('generate_featureTestsRequested', {
@@ -140,10 +218,18 @@ function renderFeatureSections(features: string[]) {
         const steps = gen.compileKnownStepsFromSource('');
         const code = gen.generateGherkinFromSource(steps, ta.value || '') || '';
         codeEl.textContent = code; highlight(codeEl);
+        storedFeat.tests = code;
+        const updatedTitle = getFeatureTitle(ta.value || '');
+        storedFeat.feature = ta.value || '';
+        storedFeat.featureTitle = updatedTitle;
+        leftTitle.textContent = updatedTitle;
+        persistGeneratedTest(idx, ta.value || '', code);
+        updateIntegrateButton(readStoredTests());
         trackEvent('generate_featureTestsResult', {
           featureIndex: idx,
           status: 'success',
           length: code.length,
+          persisted: true,
         });
       } catch (e: any) {
         codeEl.textContent = `// Error generating tests: ${e?.message || String(e)}`; highlight(codeEl);
@@ -155,10 +241,33 @@ function renderFeatureSections(features: string[]) {
       }
     };
 
+    ta.addEventListener('input', () => {
+      storedFeat.feature = ta.value || '';
+      storedFeat.featureTitle = getFeatureTitle(storedFeat.feature);
+      leftTitle.textContent = storedFeat.featureTitle;
+      persistGeneratedTest(idx, storedFeat.feature, storedFeat.tests || '');
+      updateIntegrateButton(readStoredTests());
+    });
+
     row.appendChild(left);
     row.appendChild(right);
-    featureSections.appendChild(row);
+    featureSectionsAnchor.parentNode?.insertBefore(row, featureSectionsAnchor);
   });
+  updateIntegrateButton(stored);
+}
+
+function updateIntegrateButton(stored: StoredTest[]) {
+  if (!goIntegrateBtn) return;
+  const hasTests = stored.some((entry) => Boolean(entry.tests && entry.tests.trim()));
+  const enable = hasTests;
+  goIntegrateBtn.disabled = !enable;
+  goIntegrateBtn.classList.toggle('ready', enable);
+  if (goIntegrateHint) {
+    goIntegrateHint.textContent = enable
+      ? 'Ready — this opens Step 3 to preview integration guidance.'
+      : 'Generate tests to unlock Step 3.';
+    goIntegrateHint.dataset.state = enable ? 'ready' : 'disabled';
+  }
 }
 
 function downloadText(filename: string, content: string) {
@@ -193,7 +302,10 @@ clearFeature?.addEventListener('click', () => {
   } else if (input) {
     input.value = '';
   }
-  if (featureSections) featureSections.innerHTML = '';
+  if (featureSectionsAnchor) featureSectionsAnchor.textContent = '';
+  clearStoredTests();
+  try { sessionStorage.removeItem('gherkinPayload'); } catch {}
+  updateIntegrateButton([]);
 });
 
 loadFromSession();
@@ -203,3 +315,23 @@ if (input && input.value) {
   const feats = splitFeatures(cleaned);
   renderFeatureSections(feats);
 }
+
+input?.addEventListener('input', () => {
+  try { sessionStorage.setItem('gherkinPayload', input.value || ''); } catch {}
+  updateIntegrateButton(readStoredTests());
+});
+
+goIntegrateBtn?.classList.add('step-button');
+goIntegrateBtn?.setAttribute('aria-label', 'Next · Step 3 of 3: Preview integration guidance');
+goIntegrateBtn?.addEventListener('click', () => {
+  try { sessionStorage.setItem('gherkinPayload', input?.value || ''); } catch {}
+  const stored = readStoredTests();
+  const hasTests = stored.some((entry) => Boolean(entry.tests && entry.tests.trim()));
+  trackEvent('generate_goIntegrate', {
+    featureCount: stored.length,
+    hasTests,
+  });
+  window.location.href = '/integrate.html';
+});
+
+updateIntegrateButton(readStoredTests());

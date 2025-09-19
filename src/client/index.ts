@@ -15,7 +15,7 @@ const gherkinEl = $('gherkin') as HTMLElement;
 const submitBtn = $('submitBtn') as HTMLButtonElement;
 const copyBtn = $('copyBtn') as HTMLButtonElement;
 const downloadBtn = $('downloadBtn') as HTMLButtonElement;
-const goGenerateBtn = document.createElement('button') as HTMLButtonElement;
+const goGenerateBtn = $('goGenerateBtn') as HTMLButtonElement | null;
 const lenEl = $('len') as HTMLElement;
 const wrapBtn = $('wrapBtn') as HTMLButtonElement;
 const gherkinPre = $('gherkinPre') as HTMLElement;
@@ -23,6 +23,9 @@ const timingEl = $('timing') as HTMLElement;
 const statusBar = $('statusBar') as HTMLElement;
 const progressBadge = $('progressBadge') as HTMLElement;
 const stagesEl = $('stages') as HTMLElement;
+const repoInput = $('repo') as HTMLInputElement;
+const branchInput = $('branch') as HTMLInputElement;
+const goGenerateHint = $('goGenerateHint') as HTMLElement | null;
 
 let es: EventSource | null = null;
 let startedAt = 0;
@@ -30,7 +33,80 @@ let lastUpdateAt = 0;
 let timingTimer: number | null = null;
 const SILENCE_TIMEOUT_MS = 60000;
 
+const RESULT_CACHE_KEY = 'intentionIndexCache';
+
+type ResultCache = {
+  repo?: string;
+  branch?: string;
+  gherkin?: string;
+};
+
 trackPageView('index', { path: window.location.pathname });
+
+function readResultCache(): ResultCache {
+  try {
+    const raw = sessionStorage.getItem(RESULT_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      return parsed as ResultCache;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function writeResultCache(data: ResultCache) {
+  try {
+    sessionStorage.setItem(RESULT_CACHE_KEY, JSON.stringify(data));
+  } catch {}
+}
+
+function updateResultCache(partial: Partial<ResultCache>) {
+  const current = readResultCache();
+  const next: ResultCache = { ...current, ...partial };
+  if (!next.repo) delete next.repo;
+  if (!next.branch) delete next.branch;
+  if (!next.gherkin) delete next.gherkin;
+  writeResultCache(next);
+}
+
+function clearResultCache() {
+  try {
+    sessionStorage.removeItem(RESULT_CACHE_KEY);
+  } catch {}
+}
+
+function hydrateFromCache() {
+  const cache = readResultCache();
+  if (repoInput && cache.repo) repoInput.value = cache.repo;
+  if (branchInput && cache.branch) branchInput.value = cache.branch;
+  let cachedGherkin = cache.gherkin;
+  let usedFallback = false;
+  if (!cachedGherkin) {
+    try {
+      cachedGherkin = sessionStorage.getItem('gherkinPayload') || '';
+      usedFallback = Boolean(cachedGherkin);
+    } catch {
+      cachedGherkin = '';
+    }
+  }
+  if (cachedGherkin) {
+    if (usedFallback) {
+      const repoVal = repoInput ? repoInput.value.trim() : cache.repo;
+      const branchVal = branchInput ? branchInput.value.trim() : cache.branch;
+      updateResultCache({
+        gherkin: cachedGherkin,
+        repo: repoVal || cache.repo,
+        branch: branchVal || cache.branch,
+      });
+    }
+    setGherkin(cachedGherkin, { persist: false });
+  } else {
+    setupGoGenerateButton(false);
+  }
+}
 
 function setStatus(kind: 'ok' | 'err' | 'run', text: string) {
   const cls = kind === 'ok' ? 'badge ok' : kind === 'err' ? 'badge err' : 'badge run';
@@ -38,7 +114,7 @@ function setStatus(kind: 'ok' | 'err' | 'run', text: string) {
   progressBadge.className = cls; progressBadge.textContent = text;
   statusBar.className = kind === 'err' ? 'bar show error' : 'bar show'; statusBar.textContent = text;
   document.title = `${text} — Intention BDD`;
-  if (kind === 'run') submitBtn.innerHTML = '<span class="spinner"></span> Generating…'; else submitBtn.textContent = 'Generate';
+  submitBtn.textContent = kind === 'run' ? 'Generating…' : 'Generate';
 }
 
 function append(line: string) {
@@ -47,7 +123,7 @@ function append(line: string) {
   progressEl.scrollTop = progressEl.scrollHeight;
 }
 
-function setGherkin(text?: string) {
+function setGherkin(text?: string, options?: { persist?: boolean }) {
   const t = text || '';
   gherkinEl.textContent = t;
   const n = t.length;
@@ -55,6 +131,17 @@ function setGherkin(text?: string) {
   copyBtn.disabled = !n; downloadBtn.disabled = !n; wrapBtn.disabled = !n;
   // Update or insert redirect button
   setupGoGenerateButton(n > 0);
+  const shouldPersist = options?.persist !== false;
+  if (shouldPersist) {
+    try { sessionStorage.setItem('gherkinPayload', t); } catch {}
+    const repoVal = repoInput ? repoInput.value.trim() : '';
+    const branchVal = branchInput ? branchInput.value.trim() : '';
+    updateResultCache({
+      gherkin: t || undefined,
+      repo: repoVal || undefined,
+      branch: branchVal || undefined,
+    });
+  }
   if (n) {
     try {
       if ((gherkinEl as any).dataset && (gherkinEl as any).dataset.highlighted) {
@@ -78,7 +165,7 @@ function setPlan(text?: string) {
 
 function reset() {
   progressEl.textContent = '';
-  setGherkin('');
+  setGherkin('', { persist: false });
   setPlan('');
   lenEl.textContent = '';
   timingEl.textContent = '';
@@ -98,10 +185,15 @@ document.querySelectorAll('[data-example]').forEach((a) => {
   a.addEventListener('click', (e) => {
     e.preventDefault();
     const t = a as HTMLAnchorElement;
-    ( $('repo') as HTMLInputElement ).value = t.dataset.example || '';
+    if (repoInput) {
+      repoInput.value = t.dataset.example || '';
+      updateResultCache({ repo: repoInput.value.trim() || undefined });
+    }
     trackEvent('index_exampleSelected', { example: t.dataset.example || '' });
   });
 });
+
+hydrateFromCache();
 
 copyBtn.addEventListener('click', async () => {
   const text = gherkinEl.textContent || '';
@@ -134,26 +226,42 @@ wrapBtn.addEventListener('click', () => {
 });
 
 function setupGoGenerateButton(enabled: boolean) {
-  const actions = (goGenerateBtn.parentElement) ? goGenerateBtn.parentElement : document.querySelector('.actions');
-  if (!goGenerateBtn.parentElement && actions) {
-    goGenerateBtn.id = 'goGenerateBtn';
-    goGenerateBtn.textContent = 'Generate Tests';
-    (actions as HTMLElement).insertBefore(goGenerateBtn, (actions as HTMLElement).firstChild);
-  }
+  if (!goGenerateBtn) return;
   goGenerateBtn.disabled = !enabled;
-  goGenerateBtn.onclick = () => {
-    const text = gherkinEl.textContent || '';
-    if (!text) return;
-    try { sessionStorage.setItem('gherkinPayload', text); } catch {}
-    trackEvent('index_goGenerate', { length: text.length });
-    window.location.href = '/generate.html';
-  };
+  goGenerateBtn.classList.toggle('ready', enabled);
+  if (goGenerateHint) {
+    goGenerateHint.textContent = enabled
+      ? 'Ready — this opens Step 2 in a new page with your generated Gherkin.'
+      : 'Generate Gherkin above to unlock Step 2.';
+    goGenerateHint.dataset.state = enabled ? 'ready' : 'disabled';
+  }
 }
+
+goGenerateBtn?.addEventListener('click', () => {
+  const text = gherkinEl.textContent || '';
+  if (!text) return;
+  try { sessionStorage.setItem('gherkinPayload', text); } catch {}
+  updateResultCache({
+    gherkin: text,
+    repo: repoInput ? repoInput.value.trim() || undefined : undefined,
+    branch: branchInput ? branchInput.value.trim() || undefined : undefined,
+  });
+  trackEvent('index_goGenerate', { length: text.length });
+  window.location.href = '/generate.html';
+});
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault(); if (es) { es.close(); es = null; }
-  const repo = ( $('repo') as HTMLInputElement ).value.trim();
-  const branch = ( $('branch') as HTMLInputElement ).value.trim();
+  const repo = repoInput?.value.trim() || '';
+  const branch = branchInput?.value.trim() || '';
+  const cache = readResultCache();
+  const repoChanged = Boolean(cache.repo && cache.repo !== repo);
+  const branchChanged = Boolean(cache.branch && cache.branch !== branch);
+  if (repoChanged || branchChanged) {
+    clearResultCache();
+    try { sessionStorage.removeItem('gherkinPayload'); } catch {}
+  }
+  updateResultCache({ repo: repo || undefined, branch: branch || undefined });
   trackEvent('index_jobStart', { repoProvided: Boolean(repo), branchProvided: Boolean(branch) });
   reset(); setStatus('run', 'Running'); submitBtn.disabled = true; startedAt = Date.now();
   startTiming();

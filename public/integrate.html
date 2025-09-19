@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Integrate & Run — Intention BDD</title>
+    <link rel="stylesheet" href="/assets/index.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Integrate & Run</h1>
+        <div class="sub">
+          <span class="badge step">Step 3 of 3</span>
+          Land the generated tests back in your codebase and run them with Jest.
+        </div>
+      </div>
+      <nav style="display:flex; gap:10px; align-items:center;">
+        <a href="/generate.html" class="muted">← Back</a>
+        <a href="/" class="muted">Home</a>
+        <a href="https://tiktok.github.io/jest-bdd-generator/" target="_blank" rel="noopener" class="muted">Docs</a>
+      </nav>
+    </header>
+    <main>
+      <section class="card full" aria-live="polite">
+        <div class="next-step-header">
+          <span class="badge step">Step 3 of 3</span>
+          <h2>Integrate & Run</h2>
+        </div>
+        <div class="wip-banner">
+          <span class="badge step wip">Work in Progress</span>
+          <span>This section is staging-only; interactive hooks are coming soon.</span>
+        </div>
+        <div class="hint" id="integrationSummary">View-only preview below; buttons are disabled until Step 3 ships.</div>
+        <div class="actions actions-wrap">
+          <button id="copyAllTests" disabled aria-disabled="true">Copy All Tests</button>
+          <button id="downloadAllTests" disabled aria-disabled="true">Download tests.ts</button>
+          <button id="clearSession" class="muted" disabled aria-disabled="true">Clear session data</button>
+        </div>
+      </section>
+
+      <section class="card full wip-locked">
+        <h2>Tests Ready to Paste</h2>
+        <div class="muted">Preview only — automation in progress.</div>
+        <pre class="code" id="testsCode" aria-readonly="true"><code class="language-typescript" id="testsCodeInner"></code></pre>
+      </section>
+
+      <section class="card full wip-locked">
+        <h2>Original Gherkin</h2>
+        <div class="muted">Snapshot from Step 2. This page will sync once integration is live.</div>
+        <pre class="code" id="gherkinCode" aria-readonly="true"><code class="language-gherkin" id="gherkinCodeInner"></code></pre>
+      </section>
+    </main>
+    <script type="module" src="/assets/integrate.bundle.js"></script>
+  </body>
+</html>

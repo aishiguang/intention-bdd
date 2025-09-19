@@ -10,11 +10,14 @@
   <body>
     <header>
       <div>
-        <h1>Generate Tests</h1>
-        <div class="sub">From generated Gherkin to Jest-friendly tests (Working In Progress
-        <a href="https://tiktok.github.io/jest-bdd-generator/demos/generateTests/" target="_blank" rel="noopener" class="muted">
-          explore more: A Working Demo — Generate Tests
-        </a>)</div>
+        <h1>Edit Jest Tests</h1>
+        <div class="sub">
+          <span class="badge step">Step 2 of 3</span>
+          Refine generated Gherkin into Jest-friendly tests. Still curious?
+          <a href="https://tiktok.github.io/jest-bdd-generator/demos/generateTests/" target="_blank" rel="noopener" class="muted">
+            Explore the full Jest‑BDD‑Generator demo
+          </a>
+        </div>
 
       </div>
       <nav style="display:flex; gap:10px; align-items:center;">
@@ -35,20 +38,26 @@
       </section>
 
       <section class="card full">
-        <h2>Next Step</h2>
-        <div class="hint">Use Jest‑BDD‑Generator to convert these features into Jest tests. See the documentation for CLI usage and examples.</div>
-        <div class="actions" style="margin-top:8px;">
-          <a class="stage next" href="https://tiktok.github.io/jest-bdd-generator/demos/generateTests/" target="_blank" rel="noopener" style="text-decoration:none;">
-            <span class="icon">🧪</span>
-            Open Demo — Generate Tests
-          </a>
+        <div class="section-heading">
+          <div class="stage-header">
+            <h2>Connect Gherkin to Jest</h2>
+            <div class="sub">Refine your generated Gherkin into Jest-friendly tests</div>
+          </div>        
+          <div class="next-step-block">
+            <button id="goIntegrateBtn" type="button" class="step-button" disabled>
+              <span class="step-content">
+                <span class="step-tag">Next · Step 3 of 3</span>
+                <span class="step-label">Preview Integration Guidance</span>
+                <span class="step-sub">Opens the final page to stage your generated tests</span>
+              </span>
+              <span class="step-arrow" aria-hidden="true">→</span>
+            </button>
+          <div class="step-hint muted" id="goIntegrateHint">Generate tests to unlock Step 3.</div>
+            </div>
         </div>
       </section>
 
-      <section class="card full">
-        <h2>Features</h2>
-        <div id="featureSections"></div>
-      </section>
+      <div id="featureSectionsAnchor"></div>
     </main>
     <script type="module" src="/assets/generate.bundle.js"></script>
   </body>

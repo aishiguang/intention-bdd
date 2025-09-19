@@ -11,7 +11,10 @@
     <header>
       <div>
         <h1>Intention BDD</h1>
-        <div class="sub">Generate unit‑leaning Gherkin from public GitHub repos</div>
+        <div class="sub">
+          <span class="badge step">Step 1 of 3</span>
+          Generate unit‑leaning Gherkin from public GitHub repos
+        </div>
       </div>
       <nav style="display:flex; gap:10px; align-items:center;">
         <a href="https://github.com/aishiguang/intention-bdd" target="_blank" rel="noopener" class="muted">GitHub</a>
@@ -61,24 +64,35 @@
         <pre class="code" placeholder="# Plan will appear here"><code id="plan" class="language-markdown"></code></pre>
       </section>
 
-      <section class="card full">
-        <h2>Stages</h2>
-        <div class="stages" id="stages">
-          <div class="stage" id="stage-queued">Queued</div>
-          <div class="stage" id="stage-planning">Planning</div>
-          <div class="stage" id="stage-generating">Generating</div>
-          <div class="stage" id="stage-refining">Refining</div>
-          <div class="stage" id="stage-done">Done</div>
-          <a class="stage" id="stage-next" href="https://tiktok.github.io/jest-bdd-generator/generateTests/" target="_blank" rel="noopener" title="Read Jest‑BDD‑Generator docs">
-            Next: Write your Tests
-          </a>
+      <section class="card full section-heading">
+        <div class="stage-header">
+          <h2>Stages</h2>
+
+          <div class="stages" id="stages">
+            <div class="stage" id="stage-queued">Queued</div>
+            <div class="stage" id="stage-planning">Planning</div>
+            <div class="stage" id="stage-generating">Generating</div>
+            <div class="stage" id="stage-refining">Refining</div>
+            <div class="stage" id="stage-done">Done</div>
+          </div>
+        </div>
+        <div class="next-step-block">
+          <button id="goGenerateBtn" type="button" class="step-button" disabled aria-label="Next · Step 2 of 3: Continue to edit tests in a new page">
+            <span class="step-content">
+              <span class="step-tag">Next · Step 2 of 3</span>
+              <span class="step-label">Continue to Edit Tests</span>
+              <span class="step-sub">Opens the Jest editor with your generated Gherkin</span>
+            </span>
+            <span class="step-arrow" aria-hidden="true">→</span>
+          </button>
+          <div class="step-hint muted" id="goGenerateHint">Generate Gherkin above to unlock Step 2.</div>
         </div>
       </section>
 
       <section class="card full">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <h2 style="margin:0">Generated Gherkin</h2>
-          <div class="actions">
+          <div class="actions" id="resultActions">
             <button id="copyBtn" disabled>Copy</button>
             <button id="downloadBtn" disabled>Download .feature</button>
             <button id="wrapBtn" disabled>Wrap</button>
