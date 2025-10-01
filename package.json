@@ -16,10 +16,11 @@
   },
   "dependencies": {
     "@microsoft/applicationinsights-web": "^3.3.9",
+    "@monaco-editor/loader": "^1.4.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "highlight.js": "^11.9.0",
-    "jest-bdd-generator": "^0.3.0"
+    "jest-bdd-generator": "^0.3.0",
+    "monaco-editor": "^0.46.0"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.7",

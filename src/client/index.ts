@@ -1,24 +1,20 @@
 export {};
-import hljs from 'highlight.js/lib/core';
-import gherkin from 'highlight.js/lib/languages/gherkin';
-import markdown from 'highlight.js/lib/languages/markdown';
+import type { CodeEditor } from './monaco';
+import { createEditor } from './monaco';
 import { trackEvent, trackPageView } from './telemetry';
-hljs.registerLanguage('gherkin', gherkin);
-hljs.registerLanguage('markdown', markdown);
 const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
 
 const statusEl = $('status')!;
 const form = $('gen-form') as HTMLFormElement;
 const progressEl = $('progress') as HTMLPreElement;
-const planEl = $('plan') as HTMLElement;
-const gherkinEl = $('gherkin') as HTMLElement;
+const planContainer = $('planEditor') as HTMLElement | null;
+const gherkinContainer = $('gherkinEditor') as HTMLElement | null;
 const submitBtn = $('submitBtn') as HTMLButtonElement;
 const copyBtn = $('copyBtn') as HTMLButtonElement;
 const downloadBtn = $('downloadBtn') as HTMLButtonElement;
 const goGenerateBtn = $('goGenerateBtn') as HTMLButtonElement | null;
 const lenEl = $('len') as HTMLElement;
 const wrapBtn = $('wrapBtn') as HTMLButtonElement;
-const gherkinPre = $('gherkinPre') as HTMLElement;
 const timingEl = $('timing') as HTMLElement;
 const statusBar = $('statusBar') as HTMLElement;
 const progressBadge = $('progressBadge') as HTMLElement;
@@ -26,6 +22,15 @@ const stagesEl = $('stages') as HTMLElement;
 const repoInput = $('repo') as HTMLInputElement;
 const branchInput = $('branch') as HTMLInputElement;
 const goGenerateHint = $('goGenerateHint') as HTMLElement | null;
+
+const PLAN_PLACEHOLDER = '# Plan will appear here';
+const GHERKIN_PLACEHOLDER = '# Generated Gherkin will appear here';
+
+let planEditor: CodeEditor | null = null;
+let gherkinEditor: CodeEditor | null = null;
+let latestPlanText = '';
+let latestGherkinText = '';
+let gherkinWrapEnabled = false;
 
 let es: EventSource | null = null;
 let startedAt = 0;
@@ -35,6 +40,8 @@ const SILENCE_TIMEOUT_MS = 60000;
 
 const RESULT_CACHE_KEY = 'intentionIndexCache';
 
+let gherkinEditorPromise: Promise<CodeEditor> | null = null;
+
 type ResultCache = {
   repo?: string;
   branch?: string;
@@ -42,6 +49,46 @@ type ResultCache = {
 };
 
 trackPageView('index', { path: window.location.pathname });
+
+if (planContainer) {
+  planContainer.textContent = '';
+  const initialPlan = latestPlanText || PLAN_PLACEHOLDER;
+  createEditor(planContainer, {
+    language: 'markdown',
+    value: initialPlan,
+    readOnly: true,
+    wordWrap: 'on',
+  })
+    .then((editor) => {
+      planEditor = editor;
+      planEditor.setValue(initialPlan);
+      planEditor.setScrollTop(0);
+    })
+    .catch((err) => {
+      console.error('Failed to initialise plan editor', err);
+      planContainer.textContent = initialPlan;
+    });
+}
+
+if (gherkinContainer) {
+  gherkinContainer.textContent = '';
+  const initialGherkin = latestGherkinText || GHERKIN_PLACEHOLDER;
+  gherkinEditorPromise = createEditor(gherkinContainer, {
+    language: 'gherkin',
+    value: initialGherkin,
+    readOnly: true,
+    wordWrap: gherkinWrapEnabled ? 'on' : 'off',
+  });
+  gherkinEditorPromise.then((editor) => {
+    gherkinEditor = editor;
+    gherkinEditor.setValue(initialGherkin);
+    applyWrapSetting();
+  })
+  .catch((err) => {
+    console.error('Failed to initialise Gherkin editor', err);
+    gherkinContainer.textContent = initialGherkin;
+  });
+}
 
 function readResultCache(): ResultCache {
   try {
@@ -114,7 +161,7 @@ function setStatus(kind: 'ok' | 'err' | 'run', text: string) {
   progressBadge.className = cls; progressBadge.textContent = text;
   statusBar.className = kind === 'err' ? 'bar show error' : 'bar show'; statusBar.textContent = text;
   document.title = `${text} — Intention BDD`;
-  submitBtn.textContent = kind === 'run' ? 'Generating…' : 'Generate';
+  submitBtn.textContent = kind === 'run' ? 'Generating...' : 'Generate';
 }
 
 function append(line: string) {
@@ -124,43 +171,51 @@ function append(line: string) {
 }
 
 function setGherkin(text?: string, options?: { persist?: boolean }) {
-  const t = text || '';
-  gherkinEl.textContent = t;
-  const n = t.length;
-  lenEl.textContent = n ? `${n} chars` : '';
-  copyBtn.disabled = !n; downloadBtn.disabled = !n; wrapBtn.disabled = !n;
-  // Update or insert redirect button
-  setupGoGenerateButton(n > 0);
+  const value = text || '';
+  latestGherkinText = value;
+  const display = value || GHERKIN_PLACEHOLDER;
+  if (gherkinEditorPromise) {
+    gherkinEditorPromise.then(() => gherkinEditor!.setValue(display));
+  } else if (gherkinContainer) {
+    gherkinContainer.textContent = display;
+  }
+  const length = value.length;
+  lenEl.textContent = length ? `${length} chars` : '';
+  copyBtn.disabled = !length;
+  downloadBtn.disabled = !length;
+  wrapBtn.disabled = !length;
+  setupGoGenerateButton(length > 0);
   const shouldPersist = options?.persist !== false;
   if (shouldPersist) {
-    try { sessionStorage.setItem('gherkinPayload', t); } catch {}
+    try { sessionStorage.setItem('gherkinPayload', value); } catch {}
     const repoVal = repoInput ? repoInput.value.trim() : '';
     const branchVal = branchInput ? branchInput.value.trim() : '';
     updateResultCache({
-      gherkin: t || undefined,
+      gherkin: value || undefined,
       repo: repoVal || undefined,
       branch: branchVal || undefined,
     });
   }
-  if (n) {
-    try {
-      if ((gherkinEl as any).dataset && (gherkinEl as any).dataset.highlighted) {
-        delete (gherkinEl as any).dataset.highlighted;
-      }
-      hljs.highlightElement(gherkinEl);
-    } catch {}
-  }
 }
 
 function setPlan(text?: string) {
-  planEl.textContent = text || '';
-  try {
-    planEl.classList.add('language-markdown');
-    if ((planEl as any).dataset && (planEl as any).dataset.highlighted) {
-      delete (planEl as any).dataset.highlighted;
-    }
-    hljs.highlightElement(planEl);
-  } catch {}
+  latestPlanText = text || '';
+  const display = latestPlanText || PLAN_PLACEHOLDER;
+  if (planEditor) {
+    planEditor.setValue(display);
+    planEditor.setScrollTop(0);
+  } else if (planContainer) {
+    planContainer.textContent = display;
+  }
+}
+
+function applyWrapSetting() {
+  if (gherkinEditor) {
+    gherkinEditor.updateOptions({ wordWrap: gherkinWrapEnabled ? 'on' : 'off' });
+  }
+  if (gherkinContainer) {
+    gherkinContainer.classList.toggle('wrap', gherkinWrapEnabled);
+  }
 }
 
 function reset() {
@@ -196,7 +251,7 @@ document.querySelectorAll('[data-example]').forEach((a) => {
 hydrateFromCache();
 
 copyBtn.addEventListener('click', async () => {
-  const text = gherkinEl.textContent || '';
+  const text = latestGherkinText;
   if (!text) return;
   try {
     await navigator.clipboard.writeText(text);
@@ -209,7 +264,7 @@ copyBtn.addEventListener('click', async () => {
 });
 
 downloadBtn.addEventListener('click', () => {
-  const text = gherkinEl.textContent || '';
+  const text = latestGherkinText;
   if (!text) return;
   const blob = new Blob([text], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
@@ -219,10 +274,10 @@ downloadBtn.addEventListener('click', () => {
 });
 
 wrapBtn.addEventListener('click', () => {
-  if (!gherkinPre) return;
-  const wrapped = gherkinPre.classList.toggle('wrap');
-  wrapBtn.textContent = wrapped ? 'No Wrap' : 'Wrap';
-  trackEvent('index_toggleWrap', { wrapped });
+  gherkinWrapEnabled = !gherkinWrapEnabled;
+  applyWrapSetting();
+  wrapBtn.textContent = gherkinWrapEnabled ? 'No Wrap' : 'Wrap';
+  trackEvent('index_toggleWrap', { wrapped: gherkinWrapEnabled });
 });
 
 function setupGoGenerateButton(enabled: boolean) {
@@ -238,7 +293,7 @@ function setupGoGenerateButton(enabled: boolean) {
 }
 
 goGenerateBtn?.addEventListener('click', () => {
-  const text = gherkinEl.textContent || '';
+  const text = latestGherkinText;
   if (!text) return;
   try { sessionStorage.setItem('gherkinPayload', text); } catch {}
   updateResultCache({
@@ -327,11 +382,13 @@ form.addEventListener('submit', async (e) => {
   }
 });
 
-window.addEventListener('error', () => {
-  handleFatal('Unexpected error occurred. Please retry.');
+window.addEventListener('error', (e) => {
+  console.error(e);
+  // handleFatal('Unexpected error occurred. Please retry.');
 });
-window.addEventListener('unhandledrejection', () => {
-  handleFatal('Unexpected error occurred. Please retry.');
+window.addEventListener('unhandledrejection', (e) => {
+  console.error(e);
+  // handleFatal('Unexpected error occurred. Please retry.');
 });
 
 function parseMessage(msg: unknown): null | { type: 'stage', stage: string } | { type: 'plan', plan: string } {

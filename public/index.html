@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Intention BDD — Gherkin Generator</title>
     <link rel="stylesheet" href="/assets/index.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
   </head>
   <body>
     <header>
@@ -61,7 +60,7 @@
 
       <section class="card">
         <h2>Planning (visibility)</h2>
-        <pre class="code" placeholder="# Plan will appear here"><code id="plan" class="language-markdown"></code></pre>
+        <div id="planEditor" class="monaco-host monaco-host--code"># Plan will appear here</div>
       </section>
 
       <section class="card full section-heading">
@@ -99,7 +98,7 @@
             <span class="muted" id="len"></span>
           </div>
         </div>
-        <pre id="gherkinPre" class="code"><code id="gherkin" class="language-gherkin"></code></pre>
+        <div id="gherkinEditor" class="monaco-host monaco-host--gherkin"># Generated Gherkin will appear here</div>
       </section>
     </main>
     <script type="module" src="/assets/index.bundle.js"></script>

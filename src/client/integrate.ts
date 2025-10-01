@@ -1,10 +1,7 @@
-import hljs from 'highlight.js/lib/core';
-import typescript from 'highlight.js/lib/languages/typescript';
-import gherkin from 'highlight.js/lib/languages/gherkin';
+import type { CodeEditor } from './monaco';
+import { createEditor } from './monaco';
 import { trackEvent, trackPageView } from './telemetry';
-
-hljs.registerLanguage('typescript', typescript);
-hljs.registerLanguage('gherkin', gherkin);
+import { JestToGherkin } from 'jest-bdd-generator/lib/jest-to-gherkin';
 
 type StoredTest = {
   feature: string;
@@ -15,25 +12,55 @@ type StoredTest = {
 const TEST_SESSION_KEY = 'intentionGeneratedTests';
 
 const summaryEl = document.getElementById('integrationSummary') as HTMLElement | null;
-const testsCodeEl = document.getElementById('testsCodeInner') as HTMLElement | null;
-const gherkinCodeEl = document.getElementById('gherkinCodeInner') as HTMLElement | null;
+const testsContainer = document.getElementById('integrationTestsEditor') as HTMLElement | null;
+const gherkinContainer = document.getElementById('integrationGherkinEditor') as HTMLElement | null;
 const copyBtn = document.getElementById('copyAllTests') as HTMLButtonElement | null;
 const downloadBtn = document.getElementById('downloadAllTests') as HTMLButtonElement | null;
 const clearSessionBtn = document.getElementById('clearSession') as HTMLButtonElement | null;
 
 let aggregatedTests = '';
 let gherkinSource = '';
+let testsEditor: CodeEditor | null = null;
+let testsEditorPromise: Promise<CodeEditor> | null = null;
+let gherkinEditor: CodeEditor | null = null;
+let gherkinEditorPromise: Promise<CodeEditor> | null = null;
+const TESTS_PLACEHOLDER = '// Generated tests will appear here';
+const GHERKIN_PLACEHOLDER = '# Gherkin from Step 2 will appear here';
 
 trackPageView('integrate', { path: window.location.pathname });
 
-function highlight(el: HTMLElement | null) {
-  if (!el) return;
-  try {
-    if ((el as any).dataset && (el as any).dataset.highlighted) {
-      delete (el as any).dataset.highlighted;
-    }
-    hljs.highlightElement(el);
-  } catch {}
+if (testsContainer) {
+  testsContainer.textContent = '';
+  testsEditorPromise = createEditor(testsContainer, {
+    language: 'typescript',
+    value: aggregatedTests || TESTS_PLACEHOLDER,
+    readOnly: true,
+    wordWrap: 'on',
+  });
+  testsEditorPromise.then((editor) => {
+    testsEditor = editor;
+    updateEditors();
+  })
+    .catch(() => {
+      testsContainer.textContent = aggregatedTests || TESTS_PLACEHOLDER;
+    });
+}
+
+if (gherkinContainer) {
+  gherkinContainer.textContent = '';
+  gherkinEditorPromise = createEditor(gherkinContainer, {
+    language: 'gherkin',
+    value: gherkinSource || GHERKIN_PLACEHOLDER,
+    readOnly: true,
+    wordWrap: 'off',
+  });
+  gherkinEditorPromise.then((editor) => {
+    gherkinEditor = editor;
+    updateEditors();
+  })
+    .catch(() => {
+      gherkinContainer.textContent = gherkinSource || GHERKIN_PLACEHOLDER;
+    });
 }
 
 function readStoredTests(): StoredTest[] {
@@ -74,22 +101,41 @@ function enableActions() {
   if (downloadBtn) downloadBtn.disabled = false;
 }
 
+function updateEditors() {
+  const testsContent = aggregatedTests || TESTS_PLACEHOLDER;
+  if (testsEditorPromise) {
+    testsEditorPromise.then(() => testsEditor!.setValue(testsContent));
+  } else if (testsContainer) {
+    testsContainer.textContent = testsContent;
+  }
+  const gherkinContent = gherkinSource || GHERKIN_PLACEHOLDER;
+  if (gherkinEditorPromise) {
+    gherkinEditorPromise.then(() => gherkinEditor!.setValue(gherkinContent));
+  } else if (gherkinContainer) {
+    gherkinContainer.textContent = gherkinContent;
+  }
+}
+
 function refresh() {
   const stored = readStoredTests();
-  aggregatedTests = stored
-    .map((entry) => (entry.tests || '').trim())
-    .filter((block) => block.length > 0)
-    .join('\n\n');
-  gherkinSource = readGherkin();
+  const rawTests = stored
+    .map((entry) => `describe('${entry.featureTitle}', ()=> {\n${(entry.tests || '')}});`.trim())
+    .filter((block) => block.length > 0);
+  aggregatedTests = rawTests.join('\n\n');
+  if (rawTests.length) {
+    try {
+      const jestCompiler = new JestToGherkin();
+      jestCompiler.transpile(rawTests[0], { fileName: 'generated-tests.spec.ts' });
+      jestCompiler.output.forEach((steps) => {
+        console.debug('Generated steps from Jest preview', steps);
+      });
+    } catch (err) {
+      console.debug('jest-to-gherkin transpile failed', err);
+    }
+  }
 
-  if (testsCodeEl) {
-    testsCodeEl.textContent = aggregatedTests;
-    highlight(testsCodeEl);
-  }
-  if (gherkinCodeEl) {
-    gherkinCodeEl.textContent = gherkinSource;
-    highlight(gherkinCodeEl);
-  }
+  gherkinSource = readGherkin();
+  updateEditors();
 
   const coveredCount = stored.filter((entry) => Boolean(entry.tests && entry.tests.trim().length)).length;
   if (coveredCount) {
@@ -127,7 +173,7 @@ clearSessionBtn?.addEventListener('click', () => {
   try {
     sessionStorage.removeItem(TEST_SESSION_KEY);
     sessionStorage.removeItem('gherkinPayload');
-  } catch {}
+  } catch { }
   aggregatedTests = '';
   gherkinSource = '';
   refresh();
@@ -139,7 +185,7 @@ refresh();
 if (!aggregatedTests) {
   disableActions();
 }
-
+// initialize();
 if (gherkinSource) {
   trackEvent('integrate_loadedGherkin', { length: gherkinSource.length });
 }

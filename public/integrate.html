@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Integrate & Run — Intention BDD</title>
     <link rel="stylesheet" href="/assets/index.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
   </head>
   <body>
     <header>
@@ -43,13 +42,13 @@
       <section class="card full wip-locked">
         <h2>Tests Ready to Paste</h2>
         <div class="muted">Preview only — automation in progress.</div>
-        <pre class="code" id="testsCode" aria-readonly="true"><code class="language-typescript" id="testsCodeInner"></code></pre>
+        <div id="integrationTestsEditor" class="monaco-host monaco-host--code" aria-readonly="true">// Generated tests will appear here</div>
       </section>
 
       <section class="card full wip-locked">
         <h2>Original Gherkin</h2>
         <div class="muted">Snapshot from Step 2. This page will sync once integration is live.</div>
-        <pre class="code" id="gherkinCode" aria-readonly="true"><code class="language-gherkin" id="gherkinCodeInner"></code></pre>
+        <div id="integrationGherkinEditor" class="monaco-host monaco-host--gherkin" aria-readonly="true"># Generated Gherkin will appear here</div>
       </section>
     </main>
     <script type="module" src="/assets/integrate.bundle.js"></script>

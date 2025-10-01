@@ -1,27 +1,34 @@
 import { TestGeneratorFromSource } from 'jest-bdd-generator/lib/gherkin-to-test';
-import hljs from 'highlight.js/lib/core';
-import typescript from 'highlight.js/lib/languages/typescript';
-import gherkin from 'highlight.js/lib/languages/gherkin';
+import type { CodeEditor, EditorOptions } from './monaco';
+import { createEditor as createMonacoEditor } from './monaco';
 import { trackEvent, trackPageView } from './telemetry';
-
-hljs.registerLanguage('typescript', typescript);
-hljs.registerLanguage('gherkin', gherkin);
-
-declare global {
-  interface Window {
-    hljs?: any;
-  }
-}
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement | null;
 
-const input = $('gherkinInput') as HTMLTextAreaElement;
 const featureSectionsAnchor = $('featureSectionsAnchor') as HTMLElement;
-const toPretty = $('toPretty') as HTMLButtonElement;
-const copyFeature = $('copyFeature') as HTMLButtonElement;
-const clearFeature = $('clearFeature') as HTMLButtonElement;
 const goIntegrateBtn = $('goIntegrateBtn') as HTMLButtonElement;
 const goIntegrateHint = $('goIntegrateHint') as HTMLElement | null;
+
+let trackedEditors: CodeEditor[] = [];
+
+function disposeTrackedEditors() {
+  trackedEditors.forEach((editor) => {
+    try {
+      editor.dispose();
+    } catch {}
+  });
+  trackedEditors = [];
+}
+
+async function createTrackedEditor(
+  container: HTMLElement,
+  options: EditorOptions,
+  track = true,
+) {
+  const editor = await createMonacoEditor(container, options);
+  if (track) trackedEditors.push(editor);
+  return editor;
+}
 
 trackPageView('generate', { path: window.location.pathname });
 
@@ -96,27 +103,6 @@ function persistGeneratedTest(index: number, featureSource: string, tests: strin
   } catch {}
 }
 
-function loadFromSession() {
-  try {
-    const payload = sessionStorage.getItem('gherkinPayload');
-    if (payload && input) {
-      input.value = payload;
-      trackEvent('generate_loadFromSession', { length: payload.length });
-    }
-  } catch {}
-}
-
-function highlight(el: HTMLElement | null) {
-  if (!el) return;
-  try {
-    // If previously highlighted, clear the flag so hljs can re-run
-    if ((el as any).dataset && (el as any).dataset.highlighted) {
-      delete (el as any).dataset.highlighted;
-    }
-    hljs.highlightElement(el);
-  } catch {}
-}
-
 function sanitizeGherkin(src: string): string {
   // Remove Markdown-style code fences like ``` or ```gherkin
   return src
@@ -153,6 +139,7 @@ function getFeatureTitle(featSource: string): string {
 
 function renderFeatureSections(features: string[]) {
   if (!featureSectionsAnchor) return;
+  disposeTrackedEditors();
   featureSectionsAnchor.textContent = '';
   trackEvent('generate_renderFeatures', { count: features.length });
   const stored = syncStoredTests(features);
@@ -163,95 +150,139 @@ function renderFeatureSections(features: string[]) {
     left.className = 'card';
     const leftTitle = document.createElement('h3');
     leftTitle.textContent = storedFeat.featureTitle;
-    const ta = document.createElement('textarea');
-    ta.value = storedFeat.feature;
-    ta.style.width = '100%';
-    ta.style.minHeight = '200px';
-    ta.style.background = '#0f172a';
-    ta.style.color = '#e5e7eb';
-    ta.style.border = '1px solid #1f2937';
-    ta.style.borderRadius = '8px';
-    ta.style.padding = '12px';
-    ta.style.fontFamily = 'ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace';
+    const featureEditorHost = document.createElement('div');
+    featureEditorHost.className = 'monaco-host monaco-host--gherkin';
     const leftActions = document.createElement('div');
     leftActions.className = 'actions';
     leftActions.style.marginTop = '8px';
     const btnGen = document.createElement('button');
     btnGen.textContent = 'Generate Tests';
-    const btnCopy = document.createElement('button'); btnCopy.textContent = 'Copy Feature';
-    btnCopy.onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(ta.value);
-        trackEvent('generate_copyFeature', { featureIndex: idx, length: ta.value.length });
-      } catch {}
-    };
+    btnGen.disabled = true;
+    const btnCopy = document.createElement('button');
+    btnCopy.textContent = 'Copy Feature';
+    btnCopy.disabled = true;
     leftActions.appendChild(btnGen);
     leftActions.appendChild(btnCopy);
     left.appendChild(leftTitle);
-    left.appendChild(ta);
+    left.appendChild(featureEditorHost);
     left.appendChild(leftActions);
 
     const right = document.createElement('div');
     right.className = 'card';
-    const rightTitle = document.createElement('h3'); rightTitle.textContent = 'Generated Tests';
-    const pre = document.createElement('pre'); pre.className = 'code';
-    const codeEl = document.createElement('code'); codeEl.className = 'language-typescript';
-    pre.appendChild(codeEl);
+    const rightTitle = document.createElement('h3');
+    rightTitle.textContent = 'Preview Tests';
+    const testsEditorHost = document.createElement('div');
+    testsEditorHost.className = 'monaco-host monaco-host--code';
     right.appendChild(rightTitle);
-    right.appendChild(pre);
-
-    if (storedFeat.tests) {
-      codeEl.textContent = storedFeat.tests;
-      highlight(codeEl);
-    }
-
-    btnGen.onclick = async () => {
-      codeEl.textContent = '// Generating...'; highlight(codeEl);
-      trackEvent('generate_featureTestsRequested', {
-        featureIndex: idx,
-        featureTitle: leftTitle.textContent || undefined,
-        length: ta.value.length,
-      });
-      try {
-        const gen = new TestGeneratorFromSource();
-        gen.compileGherkinFromSource(ta.value || '');
-        const steps = gen.compileKnownStepsFromSource('');
-        const code = gen.generateGherkinFromSource(steps, ta.value || '') || '';
-        codeEl.textContent = code; highlight(codeEl);
-        storedFeat.tests = code;
-        const updatedTitle = getFeatureTitle(ta.value || '');
-        storedFeat.feature = ta.value || '';
-        storedFeat.featureTitle = updatedTitle;
-        leftTitle.textContent = updatedTitle;
-        persistGeneratedTest(idx, ta.value || '', code);
-        updateIntegrateButton(readStoredTests());
-        trackEvent('generate_featureTestsResult', {
-          featureIndex: idx,
-          status: 'success',
-          length: code.length,
-          persisted: true,
-        });
-      } catch (e: any) {
-        codeEl.textContent = `// Error generating tests: ${e?.message || String(e)}`; highlight(codeEl);
-        trackEvent('generate_featureTestsResult', {
-          featureIndex: idx,
-          status: 'error',
-          message: e?.message || String(e),
-        });
-      }
-    };
-
-    ta.addEventListener('input', () => {
-      storedFeat.feature = ta.value || '';
-      storedFeat.featureTitle = getFeatureTitle(storedFeat.feature);
-      leftTitle.textContent = storedFeat.featureTitle;
-      persistGeneratedTest(idx, storedFeat.feature, storedFeat.tests || '');
-      updateIntegrateButton(readStoredTests());
-    });
+    right.appendChild(testsEditorHost);
 
     row.appendChild(left);
     row.appendChild(right);
     featureSectionsAnchor.parentNode?.insertBefore(row, featureSectionsAnchor);
+
+    void (async () => {
+      try {
+        const [featureEditor, testsEditor] = await Promise.all([
+          createTrackedEditor(featureEditorHost, {
+            language: 'gherkin',
+            value: storedFeat.feature || '',
+            wordWrap: 'off',
+          }),
+          createTrackedEditor(testsEditorHost, {
+            language: 'typescript',
+            value: storedFeat.tests || '// Generate tests to preview the Jest output',
+            readOnly: true,
+            wordWrap: 'off',
+          }),
+        ]);
+
+        btnGen.disabled = false;
+        btnCopy.disabled = false;
+
+        let generating = false;
+
+        const syncFeatureState = () => {
+          const latestValue = featureEditor.getValue();
+          storedFeat.feature = latestValue;
+          storedFeat.featureTitle = getFeatureTitle(latestValue);
+          leftTitle.textContent = storedFeat.featureTitle;
+          persistGeneratedTest(idx, storedFeat.feature, storedFeat.tests || '');
+          updateIntegrateButton(readStoredTests());
+        };
+
+        featureEditor.onDidChangeModelContent(syncFeatureState);
+
+        btnCopy.onclick = async () => {
+          try {
+            const value = featureEditor.getValue();
+            await navigator.clipboard.writeText(value);
+            trackEvent('generate_copyFeature', { featureIndex: idx, length: value.length });
+          } catch {}
+        };
+
+        const runGenerate = async () => {
+          if (generating) return;
+          generating = true;
+          btnGen.disabled = true;
+          const featureSource = featureEditor.getValue() || '';
+          const previousTests = storedFeat.tests || testsEditor.getValue() || '';
+          testsEditor.setValue('// Generating...');
+          trackEvent('generate_featureTestsRequested', {
+            featureIndex: idx,
+            featureTitle: leftTitle.textContent || undefined,
+            length: featureSource.length,
+          });
+          try {
+            const gen = new TestGeneratorFromSource();
+            gen.compileGherkinFromSource(featureSource);
+            const steps = gen.compileKnownStepsFromSource(previousTests) || [];
+
+            // gherkinSource?.feature?.children?.forEach(...) // existing WIP logic intentionally left out
+            const code = gen.generateGherkinFromSource(steps, featureSource) || '';
+            const rendered = code.trim().length ? code : '// No tests generated';
+
+            testsEditor.setValue(rendered);
+            storedFeat.tests = rendered;
+            const updatedTitle = getFeatureTitle(featureSource);
+            storedFeat.featureTitle = updatedTitle;
+            leftTitle.textContent = updatedTitle;
+            persistGeneratedTest(idx, featureSource, rendered);
+            updateIntegrateButton(readStoredTests());
+            trackEvent('generate_featureTestsResult', {
+              featureIndex: idx,
+              status: 'success',
+              length: rendered.length,
+              persisted: true,
+            });
+          } catch (e: any) {
+            const message = e?.message || String(e);
+            const errorText = `// Error generating tests: ${message}`;
+            testsEditor.setValue(errorText);
+            trackEvent('generate_featureTestsResult', {
+              featureIndex: idx,
+              status: 'error',
+              message,
+            });
+          } finally {
+            generating = false;
+            btnGen.disabled = false;
+          }
+        };
+
+        btnGen.addEventListener('click', () => {
+          void runGenerate();
+        });
+
+        if (!storedFeat.tests) {
+          storedFeat.tests = testsEditor.getValue();
+        }
+
+        void runGenerate();
+      } catch (error) {
+        testsEditorHost.textContent = 'Unable to load editors. Please reload the page.';
+        console.error('Failed to initialize feature editors', error);
+      }
+    })();
   });
   updateIntegrateButton(stored);
 }
@@ -277,54 +308,23 @@ function downloadText(filename: string, content: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// wire events
-toPretty?.addEventListener('click', () => {
-  if (!input) return;
-  const cleaned = sanitizeGherkin(input.value || '');
-  const feats = splitFeatures(cleaned);
-  trackEvent('generate_toPretty', {
-    featureCount: feats.length,
-    hadInput: Boolean(cleaned.length),
-  });
-  renderFeatureSections(feats);
-});
-copyFeature?.addEventListener('click', async () => {
+function loadFromSession() {
   try {
-    const value = input?.value || '';
-    await navigator.clipboard.writeText(value);
-    trackEvent('generate_copyRaw', { length: value.length });
+    const payload = sessionStorage.getItem('gherkinPayload');
+    if (payload) {
+    const cleaned = sanitizeGherkin(payload || '');
+    const feats = splitFeatures(cleaned);
+    renderFeatureSections(feats);
+      trackEvent('generate_loadFromSession', { length: payload.length });
+    }
   } catch {}
-});
-clearFeature?.addEventListener('click', () => {
-  if (input && input.value) {
-    trackEvent('generate_clear', { length: input.value.length });
-    input.value = '';
-  } else if (input) {
-    input.value = '';
-  }
-  if (featureSectionsAnchor) featureSectionsAnchor.textContent = '';
-  clearStoredTests();
-  try { sessionStorage.removeItem('gherkinPayload'); } catch {}
-  updateIntegrateButton([]);
-});
-
-loadFromSession();
-// Auto-split on load if payload exists
-if (input && input.value) {
-  const cleaned = sanitizeGherkin(input.value || '');
-  const feats = splitFeatures(cleaned);
-  renderFeatureSections(feats);
 }
 
-input?.addEventListener('input', () => {
-  try { sessionStorage.setItem('gherkinPayload', input.value || ''); } catch {}
-  updateIntegrateButton(readStoredTests());
-});
+loadFromSession();
 
 goIntegrateBtn?.classList.add('step-button');
 goIntegrateBtn?.setAttribute('aria-label', 'Next · Step 3 of 3: Preview integration guidance');
 goIntegrateBtn?.addEventListener('click', () => {
-  try { sessionStorage.setItem('gherkinPayload', input?.value || ''); } catch {}
   const stored = readStoredTests();
   const hasTests = stored.some((entry) => Boolean(entry.tests && entry.tests.trim()));
   trackEvent('generate_goIntegrate', {

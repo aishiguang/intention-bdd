@@ -24,9 +24,39 @@ button[disabled] { opacity:.6; cursor:default; }
 .badge.err { background:rgba(239,68,68,.15); color:#ef4444; }
 pre { margin:0; white-space:pre-wrap; }
 .log { background:#0a0f1f; color:#9ae6b4; border-radius:8px; padding:12px; max-height:260px; overflow:auto; font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:12px; }
-.code { background:#0f172a; color:#e5e7eb; border-radius:8px; padding:12px; min-height:240px; max-height:420px; max-width: 724px; margin: 0 auto; font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:13px; white-space:pre; overflow:auto; }
-.card.full > .code { max-width: 100%; }
-.code.wrap { white-space:pre-wrap; word-break:break-word; }
+.monaco-host {
+  position: relative;
+  background: #0f172a;
+  color: #e5e7eb;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 240px;
+  max-height: 420px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.monaco-host--gherkin {
+  min-height: 320px;
+  max-height: 520px;
+}
+
+.monaco-host--code {
+  min-height: 240px;
+  height: 100%;
+}
+
+.monaco-host.wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.monaco-host .monaco-editor,
+.monaco-host .monaco-editor .overflow-guard {
+  border-radius: 6px;
+}
 /* Limit Planning panel growth */
 #plan { max-height: 280px; overflow: auto; max-width: 640px; margin: 0 auto; }
 .actions { display:flex; gap:8px; }
