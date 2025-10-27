@@ -104,10 +104,12 @@ function persistGeneratedTest(index: number, featureSource: string, tests: strin
 }
 
 function sanitizeGherkin(src: string): string {
-  // Remove Markdown-style code fences like ``` or ```gherkin
   return src
     .split(/\r?\n/)
+    // Remove Markdown-style code fences like ``` or ```gherkin
     .filter((line) => !/^```/.test(line.trim()))
+    // Remove table head divider; TODO: update lib
+    .filter(line => !/^(\||-)+$/.test(line.trim()))
     .join('\n')
     .trim();
 }
@@ -224,8 +226,8 @@ function renderFeatureSections(features: string[]) {
           if (generating) return;
           generating = true;
           btnGen.disabled = true;
-          const featureSource = featureEditor.getValue() || '';
-          const previousTests = storedFeat.tests || testsEditor.getValue() || '';
+          const featureSource = sanitizeGherkin(featureEditor.getValue() || '');
+          const codeJestPrevious = storedFeat.tests || testsEditor.getValue() || '';
           testsEditor.setValue('// Generating...');
           trackEvent('generate_featureTestsRequested', {
             featureIndex: idx,
@@ -235,23 +237,23 @@ function renderFeatureSections(features: string[]) {
           try {
             const gen = new TestGeneratorFromSource();
             gen.compileGherkinFromSource(featureSource);
-            const steps = gen.compileKnownStepsFromSource(previousTests) || [];
+            const steps = gen.compileKnownStepsFromSource(codeJestPrevious) || [];
 
             // gherkinSource?.feature?.children?.forEach(...) // existing WIP logic intentionally left out
-            const code = gen.generateGherkinFromSource(steps, featureSource) || '';
-            const rendered = code.trim().length ? code : '// No tests generated';
+            const codeJest = gen.generateGherkinFromSource(steps, featureSource) || '';
+            const codeJestDisplay = codeJest.trim().length ? codeJest : '// No tests generated';
 
-            testsEditor.setValue(rendered);
-            storedFeat.tests = rendered;
+            testsEditor.setValue(codeJestDisplay);
+            storedFeat.tests = codeJestDisplay;
             const updatedTitle = getFeatureTitle(featureSource);
             storedFeat.featureTitle = updatedTitle;
             leftTitle.textContent = updatedTitle;
-            persistGeneratedTest(idx, featureSource, rendered);
+            persistGeneratedTest(idx, featureSource, codeJestDisplay);
             updateIntegrateButton(readStoredTests());
             trackEvent('generate_featureTestsResult', {
               featureIndex: idx,
               status: 'success',
-              length: rendered.length,
+              length: codeJestDisplay.length,
               persisted: true,
             });
           } catch (e: any) {

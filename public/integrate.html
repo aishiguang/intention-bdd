@@ -39,16 +39,22 @@
         </div>
       </section>
 
-      <section class="card full wip-locked">
+      <section class="card">
+        <h2>Tests Ready to Paste</h2>
+        <div class="muted">Preview only — automation in progress.</div>
+        <div id="stepsDashboarder">
+
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Edit Reuseable Step</h2>
+        <div id="stepEditor" class="monaco-host monaco-host--code"># Generated Gherkin will appear here</div>
+        <button id="previewTestsBtn">preview</button>
+
         <h2>Tests Ready to Paste</h2>
         <div class="muted">Preview only — automation in progress.</div>
         <div id="integrationTestsEditor" class="monaco-host monaco-host--code" aria-readonly="true">// Generated tests will appear here</div>
-      </section>
-
-      <section class="card full wip-locked">
-        <h2>Original Gherkin</h2>
-        <div class="muted">Snapshot from Step 2. This page will sync once integration is live.</div>
-        <div id="integrationGherkinEditor" class="monaco-host monaco-host--gherkin" aria-readonly="true"># Generated Gherkin will appear here</div>
       </section>
     </main>
     <script type="module" src="/assets/integrate.bundle.js"></script>

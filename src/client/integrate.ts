@@ -2,6 +2,7 @@ import type { CodeEditor } from './monaco';
 import { createEditor } from './monaco';
 import { trackEvent, trackPageView } from './telemetry';
 import { JestToGherkin } from 'jest-bdd-generator/lib/jest-to-gherkin';
+import { TestGeneratorFromSource } from "jest-bdd-generator/lib/gherkin-to-test";
 
 type StoredTest = {
   feature: string;
@@ -13,15 +14,17 @@ const TEST_SESSION_KEY = 'intentionGeneratedTests';
 
 const summaryEl = document.getElementById('integrationSummary') as HTMLElement | null;
 const testsContainer = document.getElementById('integrationTestsEditor') as HTMLElement | null;
+const stepsEditorContainer = document.getElementById('jestStepEditor') as HTMLDivElement | null;
 const gherkinContainer = document.getElementById('integrationGherkinEditor') as HTMLElement | null;
 const copyBtn = document.getElementById('copyAllTests') as HTMLButtonElement | null;
 const downloadBtn = document.getElementById('downloadAllTests') as HTMLButtonElement | null;
 const clearSessionBtn = document.getElementById('clearSession') as HTMLButtonElement | null;
+const stepsDashboarder = document.getElementById('stepsDashboarder') as HTMLDivElement | null;
+const previewTestsBtn = document.getElementById('previewTestsBtn') as HTMLButtonElement | null;
 
 let aggregatedTests = '';
 let gherkinSource = '';
 let testsEditor: CodeEditor | null = null;
-let testsEditorPromise: Promise<CodeEditor> | null = null;
 let gherkinEditor: CodeEditor | null = null;
 let gherkinEditorPromise: Promise<CodeEditor> | null = null;
 const TESTS_PLACEHOLDER = '// Generated tests will appear here';
@@ -29,39 +32,33 @@ const GHERKIN_PLACEHOLDER = '# Gherkin from Step 2 will appear here';
 
 trackPageView('integrate', { path: window.location.pathname });
 
-if (testsContainer) {
-  testsContainer.textContent = '';
-  testsEditorPromise = createEditor(testsContainer, {
-    language: 'typescript',
-    value: aggregatedTests || TESTS_PLACEHOLDER,
-    readOnly: true,
-    wordWrap: 'on',
-  });
-  testsEditorPromise.then((editor) => {
-    testsEditor = editor;
-    updateEditors();
-  })
+function prepareJestEditor (id: string) {
+  let testsEditorPromise: Promise<CodeEditor>;
+  const testsContainer = document.getElementById(id);
+  if (testsContainer) {
+    testsContainer.textContent = '';
+    
+    testsEditorPromise = createEditor(testsContainer, {
+      language: 'typescript',
+      value: aggregatedTests || TESTS_PLACEHOLDER,
+      wordWrap: 'on',
+    });
+    testsEditorPromise.then((editor) => {
+      testsEditor = editor;
+      updateEditors();
+    })
     .catch(() => {
       testsContainer.textContent = aggregatedTests || TESTS_PLACEHOLDER;
     });
+    return testsEditorPromise;
+  } else {
+    return Promise.reject('Unavailable Editor DOM');
+  }
 }
 
-if (gherkinContainer) {
-  gherkinContainer.textContent = '';
-  gherkinEditorPromise = createEditor(gherkinContainer, {
-    language: 'gherkin',
-    value: gherkinSource || GHERKIN_PLACEHOLDER,
-    readOnly: true,
-    wordWrap: 'off',
-  });
-  gherkinEditorPromise.then((editor) => {
-    gherkinEditor = editor;
-    updateEditors();
-  })
-    .catch(() => {
-      gherkinContainer.textContent = gherkinSource || GHERKIN_PLACEHOLDER;
-    });
-}
+const jestEditorPromise = prepareJestEditor('integrationTestsEditor');
+const stepEditorPromise = prepareJestEditor('stepEditor');
+
 
 function readStoredTests(): StoredTest[] {
   try {
@@ -103,11 +100,11 @@ function enableActions() {
 
 function updateEditors() {
   const testsContent = aggregatedTests || TESTS_PLACEHOLDER;
-  if (testsEditorPromise) {
-    testsEditorPromise.then(() => testsEditor!.setValue(testsContent));
-  } else if (testsContainer) {
-    testsContainer.textContent = testsContent;
-  }
+  // if (testsEditorPromise) {
+  //   testsEditorPromise.then(() => testsEditor!.setValue(testsContent));
+  // } else if (testsContainer) {
+  //   testsContainer.textContent = testsContent;
+  // }
   const gherkinContent = gherkinSource || GHERKIN_PLACEHOLDER;
   if (gherkinEditorPromise) {
     gherkinEditorPromise.then(() => gherkinEditor!.setValue(gherkinContent));
@@ -118,33 +115,99 @@ function updateEditors() {
 
 function refresh() {
   const stored = readStoredTests();
-  const rawTests = stored
-    .map((entry) => `describe('${entry.featureTitle}', ()=> {\n${(entry.tests || '')}});`.trim())
-    .filter((block) => block.length > 0);
-  aggregatedTests = rawTests.join('\n\n');
-  if (rawTests.length) {
-    try {
-      const jestCompiler = new JestToGherkin();
-      jestCompiler.transpile(rawTests[0], { fileName: 'generated-tests.spec.ts' });
-      jestCompiler.output.forEach((steps) => {
-        console.debug('Generated steps from Jest preview', steps);
-      });
-    } catch (err) {
-      console.debug('jest-to-gherkin transpile failed', err);
-    }
-  }
 
-  gherkinSource = readGherkin();
-  updateEditors();
+  const stepsMapped: {
+    engine: TestGeneratorFromSource;
+    gherkin: string;
+    jest: string;
+  }[] = [];
+  stored.forEach((plan, idx) => {
+    if (idx > 0) return;
+    const engine = new TestGeneratorFromSource();
+    engine.compileGherkinFromSource(plan.feature);
 
-  const coveredCount = stored.filter((entry) => Boolean(entry.tests && entry.tests.trim().length)).length;
-  if (coveredCount) {
-    setSummary(`Loaded ${coveredCount} generated test block${coveredCount > 1 ? 's' : ''}. Copy or download them, then paste into your Jest suite.`);
-    enableActions();
-  } else {
-    setSummary('No generated tests found. Return to Step 2 to build them, then hop back here.');
-    disableActions();
-  }
+    const planTitle = plan.featureTitle.replace(/'/g, '\\\'')
+    const codeJest = `describe('${planTitle}', () => {${plan.tests}})`;
+
+    const steps = engine.compileKnownStepsFromSource(codeJest) || [];
+    jestEditorPromise.then((editor) => editor.setValue(JSON.stringify(steps, null, 2)));
+    
+    stepsMapped[idx] = { engine, gherkin: plan.feature, jest: codeJest };
+
+    // const ret = engine.generateGherkinFromSource(steps, plan.feature) ?? '';
+
+    let stepEditing: typeof steps[0];
+    //jestCompiler.uniqueSteps
+    steps.forEach(step => {
+      const stepWrapper = document.createElement('div');
+      stepWrapper.textContent = `${step.key} ${step.value}`;
+      stepWrapper.className = step.key;
+      if (['Given', 'When', 'Then'].includes(step.key)) {
+        stepWrapper.addEventListener('click', (e) => {
+          stepsDashboarder?.querySelectorAll('.active').forEach(item => {
+            item.classList.remove('active');
+          })
+          stepsDashboarder?.querySelectorAll('div').forEach(el => {
+            if (el.textContent === stepWrapper.textContent) {
+              el.classList.add('active');
+            }
+          })
+          stepEditorPromise.then(editor => {
+            const val = [`// ref: ${step.sourceCode?.imports}`];
+            val.push(`// def: ${step.sourceCode?.exports}`)
+            editor.setValue(step.sourceCode?.statements?.map(s => s.getFullText()).join('\n') ?? '//implement here');
+            stepEditing = step;
+          });
+        });
+      }
+      stepsDashboarder?.appendChild(stepWrapper);
+    });
+
+    previewTestsBtn?.addEventListener('click', () => {
+      if (stepEditing?.sourceCode) {
+        stepEditorPromise.then(editor => {
+          const ret: string[] = [];
+          const insertCode = [
+            stepsMapped[idx].jest.substring(0, stepEditing.pos.start.pos),
+            editor.getValue(),
+            stepsMapped[idx].jest.substring(stepEditing.pos.end.pos),
+          ].join('');
+          stepsMapped[idx].engine = new TestGeneratorFromSource();
+          // const stepsUpdated = stepsMapped[idx].engine.compileKnownStepsFromSource(insertCode);
+
+          const compiler = new JestToGherkin();
+          compiler.transpile(insertCode, { fileName: 'preview.test.ts'});
+          const stepsUpdated = compiler.output;
+
+          const stepUpdate = stepsUpdated.find(s => s.key === stepEditing.key && s.value === stepEditing.value && s.parent === stepEditing.parent)!
+
+          if (!stepUpdate?.sourceCode)  {
+            throw new Error('Step not found after update');
+          }
+
+          steps.forEach(step => {
+            if (step.key === stepEditing.key && step.value === stepEditing.value) {
+              step.sourceCode = {...stepUpdate.sourceCode!};
+            }
+          });
+          
+          ret.push(stepsMapped[idx].engine.generateGherkinFromSource(stepsUpdated, stepsMapped[idx].gherkin) ?? '');
+          
+          const jest = ret.join('\n//-------\n');
+          jestEditorPromise.then(editor => {
+            editor.setValue(jest);
+          });
+
+          stored[idx].tests = jest
+          stepsMapped[idx].jest = `describe('${planTitle}', () => {${jest}})`;
+          sessionStorage.setItem(TEST_SESSION_KEY, JSON.stringify(stored) );
+          // steps = stepsUpdated
+        });
+
+      };
+    });
+
+  })
 }
 
 copyBtn?.addEventListener('click', async () => {
