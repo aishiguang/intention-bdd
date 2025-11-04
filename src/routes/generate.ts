@@ -1,5 +1,5 @@
 import type express from 'express';
-import { jobs, type Job, log, sendDone, sendStatus } from '../lib/jobs';
+import { jobs, type Job, SSEmanager } from '../lib/jobs';
 import { parseRepoInput, buildRepoUrl } from '../lib/gh';
 import { generateGherkinFromLink } from '../lib/analyze';
 
@@ -25,20 +25,20 @@ export function registerGenerate(app: express.Express) {
     (async () => {
       try {
         job.status = 'running';
-        sendStatus(job);
+        SSEmanager.sendStatus(job);
         const url = buildRepoUrl(parsed.owner, parsed.repo, parsed.branch);
-        log(job, `Analyzing via OpenAI link-based analyzer on ${url}`);
-        const gherkin = await generateGherkinFromLink(url, (msg) => log(job, msg));
+        SSEmanager.log(job, `Analyzing via OpenAI link-based analyzer on ${url}`);
+        const gherkin = await generateGherkinFromLink(url, (msg) => SSEmanager.log(job, msg));
         job.gherkin = gherkin;
         job.status = 'done';
-        sendStatus(job);
-        log(job, 'Generation complete.');
-        sendDone(job);
+        SSEmanager.sendStatus(job);
+        SSEmanager.log(job, 'Generation complete.');
+        SSEmanager.sendDone(job);
       } catch (err: any) {
         job.status = 'error';
-        sendStatus(job);
-        log(job, `Error: ${err?.message || String(err)}`);
-        sendDone(job);
+        SSEmanager.sendStatus(job);
+        SSEmanager.log(job, `Error: ${err?.message || String(err)}`);
+        SSEmanager.sendDone(job);
       }
     })();
 

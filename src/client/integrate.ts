@@ -13,14 +13,15 @@ type StoredTest = {
 const TEST_SESSION_KEY = 'intentionGeneratedTests';
 
 const summaryEl = document.getElementById('integrationSummary') as HTMLElement | null;
-const testsContainer = document.getElementById('integrationTestsEditor') as HTMLElement | null;
-const stepsEditorContainer = document.getElementById('jestStepEditor') as HTMLDivElement | null;
+// const testsContainer = document.getElementById('integrationTestsEditor') as HTMLElement | null;
+// const stepsEditorContainer = document.getElementById('jestStepEditor') as HTMLDivElement | null;
 const gherkinContainer = document.getElementById('integrationGherkinEditor') as HTMLElement | null;
 const copyBtn = document.getElementById('copyAllTests') as HTMLButtonElement | null;
 const downloadBtn = document.getElementById('downloadAllTests') as HTMLButtonElement | null;
 const clearSessionBtn = document.getElementById('clearSession') as HTMLButtonElement | null;
 const stepsDashboarder = document.getElementById('stepsDashboarder') as HTMLDivElement | null;
-const previewTestsBtn = document.getElementById('previewTestsBtn') as HTMLButtonElement | null;
+const buttonApplyStep = document.getElementById('previewTestsBtn') as HTMLButtonElement | null;
+const scenarioWrap = document.getElementById('scenarioWrap') as HTMLDivElement | null;
 
 let aggregatedTests = '';
 let gherkinSource = '';
@@ -76,27 +77,27 @@ function readStoredTests(): StoredTest[] {
   }
 }
 
-function readGherkin(): string {
-  try {
-    return sessionStorage.getItem('gherkinPayload') || '';
-  } catch {
-    return '';
-  }
-}
+// function readGherkin(): string {
+//   try {
+//     return sessionStorage.getItem('gherkinPayload') || '';
+//   } catch {
+//     return '';
+//   }
+// }
 
-function setSummary(text: string) {
-  if (summaryEl) summaryEl.textContent = text;
-}
+// function setSummary(text: string) {
+//   if (summaryEl) summaryEl.textContent = text;
+// }
 
 function disableActions() {
   if (copyBtn) copyBtn.disabled = true;
   if (downloadBtn) downloadBtn.disabled = true;
 }
 
-function enableActions() {
-  if (copyBtn) copyBtn.disabled = false;
-  if (downloadBtn) downloadBtn.disabled = false;
-}
+// function enableActions() {
+//   if (copyBtn) copyBtn.disabled = false;
+//   if (downloadBtn) downloadBtn.disabled = false;
+// }
 
 function updateEditors() {
   const testsContent = aggregatedTests || TESTS_PLACEHOLDER;
@@ -113,14 +114,29 @@ function updateEditors() {
   }
 }
 
+function trimEmptyLines(input: string): string {
+  const lines = input.split(/\r?\n/);
+  let valStart: number | undefined, valEnd = lines.length - 1;
+  lines.forEach((line, i) => {
+    if (line.trim().length > 0) {
+      valStart = valStart ?? i;
+      valEnd = i;
+    } 
+  });
+  return lines.slice(valStart ?? 0, valEnd + 1).join('\n');
+}
+
+let stepEditing: ReturnType<TestGeneratorFromSource['compileKnownStepsFromSource']>[0] | null = null;
+
+const stepsMapped: {
+  engine: TestGeneratorFromSource;
+  gherkin: string;
+  jest: string;
+}[] = [];
+
 function refresh() {
   const stored = readStoredTests();
-
-  const stepsMapped: {
-    engine: TestGeneratorFromSource;
-    gherkin: string;
-    jest: string;
-  }[] = [];
+  stepsDashboarder!.textContent = '';
   stored.forEach((plan, idx) => {
     if (idx > 0) return;
     const engine = new TestGeneratorFromSource();
@@ -136,11 +152,14 @@ function refresh() {
 
     // const ret = engine.generateGherkinFromSource(steps, plan.feature) ?? '';
 
-    let stepEditing: typeof steps[0];
     //jestCompiler.uniqueSteps
     steps.forEach(step => {
       const stepWrapper = document.createElement('div');
-      stepWrapper.textContent = `${step.key} ${step.value}`;
+      const keywordLabel = document.createElement('span');
+      keywordLabel.textContent = step.key + ' ';
+      keywordLabel.className = 'keyword';
+      stepWrapper.appendChild(keywordLabel);
+      stepWrapper.appendChild(document.createTextNode(step.value));
       stepWrapper.className = step.key;
       if (['Given', 'When', 'Then'].includes(step.key)) {
         stepWrapper.addEventListener('click', (e) => {
@@ -153,62 +172,82 @@ function refresh() {
             }
           })
           stepEditorPromise.then(editor => {
-            const val = [`// ref: ${step.sourceCode?.imports}`];
-            val.push(`// def: ${step.sourceCode?.exports}`)
-            editor.setValue(step.sourceCode?.statements?.map(s => s.getFullText()).join('\n') ?? '//implement here');
+            const val = []; // [`// ref: ${step.sourceCode?.imports}\n`, `// def: ${step.sourceCode?.exports}\n`];
+            val.push(trimEmptyLines(codeJest.substring(step.pos.start.pos, step.pos.end.pos - 1) || '//implement here'));
+            // Trim empty lines and normalize line endings
+
+            editor.setValue(val.join(''));
             stepEditing = step;
           });
+
+          const parentScenario = steps.find(s => s.key === 'Scenario' && s.value === step.parent);
+          if (!parentScenario) {
+            scenarioWrap!.textContent = '';
+            return;
+          }
+          const startPos = parentScenario?.pos.end.pos! - parentScenario?.sourceCode?.fullText.length! + 1;
+          scenarioWrap!.textContent = trimEmptyLines(codeJest.substring(startPos, step.pos.start.pos));
         });
       }
       stepsDashboarder?.appendChild(stepWrapper);
     });
 
-    previewTestsBtn?.addEventListener('click', () => {
-      if (stepEditing?.sourceCode) {
-        stepEditorPromise.then(editor => {
-          const ret: string[] = [];
-          const insertCode = [
-            stepsMapped[idx].jest.substring(0, stepEditing.pos.start.pos),
-            editor.getValue(),
-            stepsMapped[idx].jest.substring(stepEditing.pos.end.pos),
-          ].join('');
-          stepsMapped[idx].engine = new TestGeneratorFromSource();
-          // const stepsUpdated = stepsMapped[idx].engine.compileKnownStepsFromSource(insertCode);
-
-          const compiler = new JestToGherkin();
-          compiler.transpile(insertCode, { fileName: 'preview.test.ts'});
-          const stepsUpdated = compiler.output;
-
-          const stepUpdate = stepsUpdated.find(s => s.key === stepEditing.key && s.value === stepEditing.value && s.parent === stepEditing.parent)!
-
-          if (!stepUpdate?.sourceCode)  {
-            throw new Error('Step not found after update');
-          }
-
-          steps.forEach(step => {
-            if (step.key === stepEditing.key && step.value === stepEditing.value) {
-              step.sourceCode = {...stepUpdate.sourceCode!};
-            }
-          });
-          
-          ret.push(stepsMapped[idx].engine.generateGherkinFromSource(stepsUpdated, stepsMapped[idx].gherkin) ?? '');
-          
-          const jest = ret.join('\n//-------\n');
-          jestEditorPromise.then(editor => {
-            editor.setValue(jest);
-          });
-
-          stored[idx].tests = jest
-          stepsMapped[idx].jest = `describe('${planTitle}', () => {${jest}})`;
-          sessionStorage.setItem(TEST_SESSION_KEY, JSON.stringify(stored) );
-          // steps = stepsUpdated
-        });
-
-      };
-    });
-
   })
 }
+
+buttonApplyStep?.addEventListener('click', () => {
+  if (!stepEditing) return;
+  if (!stepEditing.sourceCode) return;
+
+  const stored = readStoredTests();
+  const ret: string[] = [];
+  stepEditorPromise.then(editor => {
+    stepsMapped.forEach((_, idx) => {
+      const planTitle = stored[idx].featureTitle.replace(/'/g, '\\\'');
+      const steps = stepsMapped[idx].engine.transpiler?.output//.compileKnownStepsFromSource(stepsMapped[idx].jest) || [];
+      const insertCode = [
+        stepsMapped[idx].jest.substring(0, stepEditing!.pos.start.pos),
+        editor.getValue().split('\n').filter(line => line.trim().length > 0).join('\n'),
+        stepsMapped[idx].jest.substring(stepEditing!.pos.end.pos),
+      ].join('');
+      stepsMapped[idx].engine = new TestGeneratorFromSource();
+      // const stepsUpdated = stepsMapped[idx].engine.compileKnownStepsFromSource(insertCode);
+
+      const compiler = new JestToGherkin();
+      compiler.transpile(insertCode, { fileName: 'preview.test.ts'});
+      const stepsUpdated = compiler.output;
+
+      const stepUpdate = stepsUpdated.find(s => s.key === stepEditing!.key && s.value === stepEditing!.value && s.parent === stepEditing!.parent)!
+
+      if (!stepUpdate?.sourceCode)  {
+        throw new Error('Step not found after update');
+      }
+
+      steps!.forEach(step => {
+        if (step.key === stepEditing!.key && step.value === stepEditing!.value) {
+          step.sourceCode = {...stepUpdate.sourceCode!};
+        }
+      });
+      
+      const jestCodeNew = stepsMapped[idx].engine.generateGherkinFromSource(stepsUpdated, stepsMapped[idx].gherkin) ?? '';
+      ret.push(jestCodeNew);
+      
+
+      stored[idx].tests = jestCodeNew;
+      stepsMapped[idx].jest = `describe('${planTitle}', () => {${jestCodeNew}})`;
+      sessionStorage.setItem(TEST_SESSION_KEY, JSON.stringify(stored) );
+      // steps = stepsUpdated
+    });//end foreach
+
+    const jestCodeFull = ret.join('\n//-------\n');
+    jestEditorPromise.then(editor => {
+      editor.setValue(jestCodeFull);
+    });
+    refresh();
+    trackEvent('integrate_applyStepEdit', {});
+  });
+
+});
 
 copyBtn?.addEventListener('click', async () => {
   if (!aggregatedTests) return;
