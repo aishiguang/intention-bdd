@@ -190,7 +190,7 @@ button.muted:hover { color:var(--fg); }
 }
 .stages .stage:not(.active) { animation: none; }
 #stepsDashboarder { line-height: 1.25em; font-family: var(--font-family-code); font-weight: 100;}
-#stepsDashboarder .active{ background-color: var(--success-border);}
+#stepsDashboarder .active{ background-color: var(--step-gradient-start); color: var(--white); padding: 0 0.2em; border-radius: 4px;}
 #stepsDashboarder .Given, 
 #stepsDashboarder .When, 
 #stepsDashboarder .Then {padding-left: 2em; text-decoration: underline}
