@@ -1,4 +1,5 @@
 import loader from '@monaco-editor/loader';
+// export { Selection } from 'monaco-editor';
 import type * as monacoEditor from 'monaco-editor';
 
 loader.config({
@@ -6,7 +7,6 @@ loader.config({
     vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs',
   },
 });
-
 const monacoReady = loader
   .init()
   .then((monaco) => {

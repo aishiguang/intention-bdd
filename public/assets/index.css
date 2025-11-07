@@ -2,6 +2,7 @@
   --bg: #0b1020;
   --fg: #e6e6e6;
   --muted: #94a3b8;
+  --muted-bg: #1e293b;
   --accent: #7c3aed;
   --panel: #111827;
   --ok: #10b981;
@@ -108,6 +109,10 @@ pre { margin:0; white-space:pre-wrap; }
   height: 100%;
 }
 
+.monaco-host--step {
+  min-height: auto;
+}
+
 .monaco-host.wrap {
   white-space: pre-wrap;
   word-break: break-word;
@@ -199,4 +204,4 @@ button.muted:hover { color:var(--fg); }
 #stepsDashboarder .Examples {display: none;}
 #stepsDashboarder .Scenario{padding-left: 1em; margin: 0.5em 0 0;}
 
-#scenarioWrap { color: var(--muted); font-family: var(--font-family-code); white-space: pre; font-size: 12px; padding-left: 7em;}
+.scenarioWrap { color: var(--muted); font-family: var(--font-family-code); white-space: pre; font-size: 13px; padding-left: 6em; background-color: var(--muted-bg);}

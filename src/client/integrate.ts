@@ -22,6 +22,7 @@ const clearSessionBtn = document.getElementById('clearSession') as HTMLButtonEle
 const stepsDashboarder = document.getElementById('stepsDashboarder') as HTMLDivElement | null;
 const buttonApplyStep = document.getElementById('previewTestsBtn') as HTMLButtonElement | null;
 const scenarioWrap = document.getElementById('scenarioWrap') as HTMLDivElement | null;
+const scenarioWrapEnd = document.getElementById('scenarioWrapEnd') as HTMLDivElement | null;
 
 let aggregatedTests = '';
 let gherkinSource = '';
@@ -47,6 +48,13 @@ function prepareJestEditor (id: string) {
     testsEditorPromise.then((editor) => {
       testsEditor = editor;
       updateEditors();
+      editor.onDidContentSizeChange(() => {
+        const contentHeight = editor.getContentHeight() + 20;
+        // Set the height of the editor's DOM container
+        testsContainer.style.height = `${contentHeight}px`; 
+        // Inform the editor about the new dimensions
+        editor.layout({ height: contentHeight, width: testsContainer.clientWidth}); 
+      });
     })
     .catch(() => {
       testsContainer.textContent = aggregatedTests || TESTS_PLACEHOLDER;
@@ -146,7 +154,6 @@ function refresh() {
     const codeJest = `describe('${planTitle}', () => {${plan.tests}})`;
 
     const steps = engine.compileKnownStepsFromSource(codeJest) || [];
-    jestEditorPromise.then((editor) => editor.setValue(JSON.stringify(steps, null, 2)));
     
     stepsMapped[idx] = { engine, gherkin: plan.feature, jest: codeJest };
 
@@ -173,20 +180,24 @@ function refresh() {
           })
           stepEditorPromise.then(editor => {
             const val = []; // [`// ref: ${step.sourceCode?.imports}\n`, `// def: ${step.sourceCode?.exports}\n`];
-            val.push(trimEmptyLines(codeJest.substring(step.pos.start.pos, step.pos.end.pos - 1) || '//implement here'));
+            val.push(trimEmptyLines(codeJest.substring(step.pos.start.pos, step.pos.end.pos - 1) || '//implement here') + '\n');
             // Trim empty lines and normalize line endings
 
             editor.setValue(val.join(''));
+            editor.focus();
+            // editor.setSelection(new Selection(0, 0, editor.getModel()!.getLineCount(), 0));
             stepEditing = step;
           });
 
           const parentScenario = steps.find(s => s.key === 'Scenario' && s.value === step.parent);
           if (!parentScenario) {
             scenarioWrap!.textContent = '';
+            scenarioWrapEnd!.textContent = '';
             return;
           }
           const startPos = parentScenario?.pos.end.pos! - parentScenario?.sourceCode?.fullText.length! + 1;
           scenarioWrap!.textContent = trimEmptyLines(codeJest.substring(startPos, step.pos.start.pos));
+          scenarioWrapEnd!.textContent = trimEmptyLines(codeJest.substring(step.pos.end.pos - 1, parentScenario?.pos.end.pos! + 1));
         });
       }
       stepsDashboarder?.appendChild(stepWrapper);
@@ -205,12 +216,15 @@ buttonApplyStep?.addEventListener('click', () => {
     stepsMapped.forEach((_, idx) => {
       const planTitle = stored[idx].featureTitle.replace(/'/g, '\\\'');
       const steps = stepsMapped[idx].engine.transpiler?.output//.compileKnownStepsFromSource(stepsMapped[idx].jest) || [];
+      const parentScenario = steps!.find(s => s.key === 'Scenario' && s.value === stepEditing!.parent);
       const insertCode = [
-        stepsMapped[idx].jest.substring(0, stepEditing!.pos.start.pos),
-        editor.getValue().split('\n').filter(line => line.trim().length > 0).join('\n'),
-        stepsMapped[idx].jest.substring(stepEditing!.pos.end.pos),
+        stepsMapped[idx].jest.substring(0, parentScenario!.pos.start.pos),
+        '{\n',
+        trimEmptyLines(editor.getValue()),
+        '\n}',
+        stepsMapped[idx].jest.substring(parentScenario!.pos.end.pos),
       ].join('');
-      stepsMapped[idx].engine = new TestGeneratorFromSource();
+      // stepsMapped[idx].engine = new TestGeneratorFromSource();
       // const stepsUpdated = stepsMapped[idx].engine.compileKnownStepsFromSource(insertCode);
 
       const compiler = new JestToGherkin();
@@ -229,7 +243,7 @@ buttonApplyStep?.addEventListener('click', () => {
         }
       });
       
-      const jestCodeNew = stepsMapped[idx].engine.generateGherkinFromSource(stepsUpdated, stepsMapped[idx].gherkin) ?? '';
+      const jestCodeNew = stepsMapped[idx].engine.generateGherkinFromSource(steps!, stepsMapped[idx].gherkin) ?? '';
       ret.push(jestCodeNew);
       
 
